@@ -418,23 +418,26 @@ if uploaded_file:
         bom_df = bom_df.rename(columns={os_col: 'OS', 'CPUs': 'vCPUs'})
         bom_df = bom_df.sort_values(['OS Family', 'VM']).reset_index(drop=True)
 
-        # BYOL toggle — only editable for Windows VMs
+        # Migrate + BYOL toggles
+        bom_df['Migrate'] = True
         bom_df['BYOL'] = False
-        bom_df['Windows License'] = bom_df['OS Family'].apply(
-            lambda f: 'License Included' if f == 'Windows' else 'N/A'
-        )
 
         if pricing_ok:
             win_os_hr = prices.get('B88318', 0)
 
             st.caption(f"Shape: {shape} | On-Demand | Storage: Balanced (10 VPU) | Prices as of OCI API ({currency})")
             st.info("⚠️ Quote is for investment proposal only.")
-            st.caption("For Windows VMs, check **BYOL** if customer brings their own Windows license (removes OS cost).")
+            st.caption("Uncheck **Migrate** to exclude a VM. For Windows VMs, check **BYOL** if customer brings their own license (removes OS cost).")
 
-            # Editable table — only BYOL column is editable
+            # Editable table
             edited = st.data_editor(
-                bom_df[['VM', 'OS Family', 'OS', 'vCPUs', 'OCPUs', 'Memory GB', 'Provisioned TB', 'BYOL']],
+                bom_df[['Migrate', 'VM', 'OS Family', 'OS', 'vCPUs', 'OCPUs', 'Memory GB', 'Provisioned TB', 'BYOL']],
                 column_config={
+                    "Migrate": st.column_config.CheckboxColumn(
+                        "Migrate",
+                        help="Uncheck to exclude this VM from the BOM",
+                        default=True,
+                    ),
                     "BYOL": st.column_config.CheckboxColumn(
                         "BYOL",
                         help="Check if customer brings their own Windows license",
@@ -453,8 +456,14 @@ if uploaded_file:
                 key="bom_editor"
             )
 
-            # Merge BYOL selections back
-            bom_df['BYOL'] = edited['BYOL'].values
+            # Merge selections back and filter to migrating VMs only
+            bom_df['Migrate'] = edited['Migrate'].values
+            bom_df['BYOL']    = edited['BYOL'].values
+            excluded_count    = int((~bom_df['Migrate']).sum())
+            bom_df            = bom_df[bom_df['Migrate']].copy()
+
+            if excluded_count > 0:
+                st.caption(f"ℹ️ {excluded_count} VM(s) excluded from BOM.")
 
             # Recalculate with BYOL
             def vm_cost(row):
