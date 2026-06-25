@@ -3,18 +3,69 @@ import pandas as pd
 import requests
 from io import BytesIO
 
-st.set_page_config(page_title="RVTools Analyzer", page_icon="🖥️", layout="wide")
-st.title("🖥️ RVTools Analyzer")
-st.caption("Upload an RVTools Excel export to get infrastructure summary.")
+st.set_page_config(page_title="OCI Migration Estimator", page_icon="☁️", layout="wide")
+
+st.markdown("""
+<style>
+/* Page background */
+[data-testid="stAppViewContainer"] { background: #f7f8fa; }
+[data-testid="stHeader"] { background: transparent; }
+
+/* Metric cards */
+[data-testid="metric-container"] {
+    background: #ffffff;
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+    padding: 16px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+[data-testid="stMetricValue"] { font-size: 1.6rem !important; color: #1a1a2e; }
+[data-testid="stMetricLabel"] { font-size: 0.78rem !important; color: #6b7280; font-weight: 500; }
+
+/* Tab styling */
+[data-testid="stTabs"] button {
+    font-size: 0.92rem;
+    font-weight: 600;
+    padding: 8px 20px;
+}
+
+/* Dividers */
+hr { border-color: #e3e8ef; }
+
+/* Section headers */
+h3 { color: #1a1a2e !important; font-size: 1.05rem !important; font-weight: 700 !important; margin-bottom: 4px !important; }
+
+/* Upload box */
+[data-testid="stFileUploader"] {
+    background: #ffffff;
+    border: 2px dashed #c7d2e0;
+    border-radius: 10px;
+    padding: 8px;
+}
+
+/* Info/warning banners */
+[data-testid="stAlert"] { border-radius: 8px; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Header ─────────────────────────────────────────────────
+st.markdown("""
+<div style="display:flex;align-items:center;gap:14px;margin-bottom:4px;">
+  <span style="font-size:2.2rem;">☁️</span>
+  <div>
+    <div style="font-size:1.6rem;font-weight:800;color:#1a1a2e;line-height:1.1;">OCI Migration Estimator</div>
+    <div style="font-size:0.82rem;color:#6b7280;margin-top:2px;">Powered by live OCI pricing API &nbsp;·&nbsp; Upload RVTools export to begin</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 st.warning(
-    "⚠️ **This tool is not an official Oracle product.** "
-    "Always validate pricing with the official Oracle Cost Estimator: "
-    "[cloud.oracle.com/cost-estimator](https://www.oracle.com/anz/cloud/costestimator.html)",
-    icon=None
+    "**Not an official Oracle product.** Always validate with the "
+    "[OCI Cost Estimator](https://www.oracle.com/anz/cloud/costestimator.html) before sharing with customers.",
+    icon="⚠️"
 )
 
-uploaded_file = st.file_uploader("Upload RVTools Excel file", type=["xlsx"])
+uploaded_file = st.file_uploader("Upload RVTools Excel export (.xlsx)", type=["xlsx"], label_visibility="collapsed")
 
 VMWARE_NAME_PREFIXES = ('vcls-', 'z-vrah-', 'z-vra-')
 HOURS_PER_MONTH = 744
@@ -342,42 +393,33 @@ if uploaded_file:
     real_vms = powered_on_vms[~powered_on_vms['VMware Infra']].copy()
     vmware_vms = powered_on_vms[powered_on_vms['VMware Infra']].copy()
 
-    tab1, tab2, tab3 = st.tabs(["📋 Current State", "🔍 Workload Analysis", "📦 Migration BOM"])
+    tab1, tab2 = st.tabs(["📋  Infrastructure Summary", "📦  Migration BOM"])
 
-    # ── TAB 1: Current State ───────────────────────────────
+    # ── TAB 1: Infrastructure Summary ─────────────────────
     with tab1:
-        st.subheader("Host Infrastructure")
+        st.markdown("### 🖥️ Physical Hosts")
         c1, c2, c3 = st.columns(3)
         c1.metric("Physical Hosts", len(vHost_filtered))
         c2.metric("Total Cores", total_cores)
         c3.metric("Total Memory", f"{total_memory_gb} GB")
         st.divider()
 
-        st.subheader("CPU Utilisation")
-        cpu1, cpu2 = st.columns(2)
-        cpu1.metric("Avg CPU Usage", f"{avg_cpu_usage}%")
-        cpu2.metric("Actual Core Usage (Average)", cores_based_on_avg_cpu)
+        st.markdown("### ⚡ CPU & Memory Utilisation")
+        u1, u2, u3, u4 = st.columns(4)
+        u1.metric("Avg CPU Usage", f"{avg_cpu_usage}%")
+        u2.metric("Actual Core Usage", cores_based_on_avg_cpu)
+        u3.metric("Avg Memory Usage", f"{avg_mem_usage}%")
+        u4.metric("Actual Memory Usage", f"{mem_based_on_avg_usage} GB")
         st.divider()
 
-        st.subheader("Memory Utilisation")
-        mem1, mem2 = st.columns(2)
-        mem1.metric("Avg Memory Usage", f"{avg_mem_usage}%")
-        mem2.metric("Actual Memory Usage (Average)", f"{mem_based_on_avg_usage} GB")
+        st.markdown("### 🗂️ Powered-On VMs")
+        v1, v2, v3 = st.columns(3)
+        v1.metric("Total Powered-On VMs", len(powered_on_vms))
+        v2.metric("Workload VMs (to migrate)", len(real_vms))
+        v3.metric("VMware Infra VMs (excluded)", len(vmware_vms))
         st.divider()
 
-        with st.expander("Raw vHost Data"):
-            st.dataframe(df_vHost, use_container_width=True)
-
-    # ── TAB 2: Workload Analysis ───────────────────────────
-    with tab2:
-        st.subheader("All Powered-On VMs")
-        w1, w2, w3 = st.columns(3)
-        w1.metric("Total VMs", len(powered_on_vms))
-        w2.metric("Real Workload VMs", len(real_vms))
-        w3.metric("VMware Infra VMs (excluded)", len(vmware_vms))
-        st.divider()
-
-        st.subheader("OS Breakdown (Real Workload Only)")
+        st.markdown("### 🪟 OS Breakdown — Workload VMs")
         real_os_counts = (
             real_vms[os_col].fillna('Unknown')
             .value_counts().reset_index()
@@ -387,24 +429,26 @@ if uploaded_file:
 
         col_win, col_lin = st.columns(2)
         with col_win:
-            st.markdown("**Windows**")
+            st.markdown("**🪟 Windows**")
             win_df = real_os_counts[real_os_counts['Family'] == 'Windows'][['OS', 'Count']].reset_index(drop=True)
             st.dataframe(win_df, use_container_width=True, hide_index=True)
         with col_lin:
-            st.markdown("**Linux / Other**")
+            st.markdown("**🐧 Linux / Other**")
             other_df = real_os_counts[real_os_counts['Family'] != 'Windows'][['OS', 'Count']].reset_index(drop=True)
             st.dataframe(other_df, use_container_width=True, hide_index=True)
-        st.divider()
 
-        st.subheader("VMware Infrastructure VMs (Not Migrating)")
-        st.caption("vCLS agents, vRealize agents, Photon CRX, vCenter — VMware platform VMs, not customer workloads.")
-        vmware_display = vmware_vms[['VM', os_col, 'CPUs', 'Memory GB']].rename(columns={os_col: 'OS', 'CPUs': 'vCPUs'}).reset_index(drop=True)
-        st.dataframe(vmware_display, use_container_width=True, hide_index=True)
+        with st.expander("VMware Infrastructure VMs (excluded from migration)"):
+            st.caption("vCLS agents, vRealize agents, Photon CRX, vCenter — platform VMs, not customer workloads.")
+            vmware_display = vmware_vms[['VM', os_col, 'CPUs', 'Memory GB']].rename(columns={os_col: 'OS', 'CPUs': 'vCPUs'}).reset_index(drop=True)
+            st.dataframe(vmware_display, use_container_width=True, hide_index=True)
 
-    # ── TAB 3: Migration BOM ───────────────────────────────
-    with tab3:
-        st.subheader("Migration BOM — Real Workload")
-        st.caption("Like-for-like migration based on assigned (provisioned) values in VMware. VMware infra VMs excluded. 2 vCPU = 1 OCPU.")
+        with st.expander("Raw vHost Data"):
+            st.dataframe(df_vHost, use_container_width=True)
+
+    # ── TAB 2: Migration BOM ──────────────────────────────
+    with tab2:
+        st.markdown("### 📦 Migration BOM — Real Workload")
+        st.caption("Like-for-like migration based on provisioned values in VMware. VMware infra VMs excluded. 2 vCPU = 1 OCPU.")
 
         # Currency + shape selector
         col_cur, col_shape, _ = st.columns([1, 1, 2])
@@ -579,7 +623,7 @@ if uploaded_file:
             st.divider()
 
             # --- RackWare Migration Cost ---
-            st.subheader("RackWare Migration Cost (One-Time)")
+            st.markdown("### 🚚 RackWare Migration Cost (One-Time)")
             st.caption("RackWare on OCI Marketplace — PAYGO. Billed per OCPU per hour during migration window only.")
 
             total_ocpus = int(bom_df['OCPUs'].sum())
@@ -608,7 +652,7 @@ if uploaded_file:
             st.divider()
 
             # --- Object Storage (Backups) Calculator ---
-            st.subheader("Object Storage — Backups (Optional)")
+            st.markdown("### 🗄️ Object Storage — Backups (Optional)")
             st.caption("OCI Standard Object Storage for VM backups / snapshots post-migration. Customer estimate — adjust to actual backup retention needs.")
 
             obj_rate = prices.get(SKU_OBJ_STG, 0.0436101)
