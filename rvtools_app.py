@@ -779,8 +779,8 @@ if uploaded_file:
             total_ocpus = int(bom_df['OCPUs'].sum())
 
             rw1, rw2, rw3, rw4 = st.columns(4)
-            rw_ocpus    = rw1.number_input("OCPUs to Migrate", value=total_ocpus, min_value=1, step=1,
-                                           help=f"Default: all {total_ocpus} OCPUs. Reduce if customer migrates in phases.")
+            rw_ocpus    = rw1.number_input("OCPUs to Migrate", value=2, min_value=1, step=1,
+                                           help=f"Total workload OCPUs: {total_ocpus}. Default 2 — adjust to actual migration batch size.")
             rw_rate_usd = rw2.number_input("RackWare Rate (USD/OCPU/hr)", value=2.53, step=0.01, format="%.2f")
             rw_days     = rw3.number_input("Migration Duration (days)", value=7, min_value=1, step=1)
             rw_hrs_day  = rw4.number_input("Hours/day RackWare runs", value=8, min_value=1, max_value=24, step=1)
