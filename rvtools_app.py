@@ -449,6 +449,32 @@ if uploaded_file:
             }])
             st.dataframe(pd.concat([cost_display, totals], ignore_index=True), use_container_width=True, hide_index=True)
 
+            st.divider()
+
+            # --- RackWare Migration Cost ---
+            st.subheader("RackWare Migration Cost (One-Time)")
+            st.caption("RackWare on OCI Marketplace — PAYGO. Billed per OCPU per hour during migration window only.")
+
+            rw1, rw2, rw3 = st.columns(3)
+            rw_rate_usd = rw1.number_input("RackWare Rate (USD/OCPU/hr)", value=2.53, step=0.01, format="%.2f")
+            rw_days     = rw2.number_input("Migration Duration (days)", value=7, min_value=1, step=1)
+            rw_hrs_day  = rw3.number_input("Hours/day RackWare runs", value=8, min_value=1, max_value=24, step=1)
+            st.caption("💡 RackWare supports pause/resume and scheduled replication windows — it does not need to run 24/7. Typical migrations use 8 hrs/day (business hours). Adjust based on your agreed migration window with the customer.")
+
+            total_ocpus    = int(bom_df['OCPUs'].sum())
+            rw_hours       = rw_days * rw_hrs_day
+            rw_cost_usd    = round(total_ocpus * rw_rate_usd * rw_hours, 2)
+
+            st.caption(f"Formula: {total_ocpus} OCPUs × USD {rw_rate_usd}/hr × {rw_hours} hrs ({rw_days} days × {rw_hrs_day} hrs/day)")
+
+            rc1, rc2, rc3, rc4 = st.columns(4)
+            rc1.metric("Total OCPUs", total_ocpus)
+            rc2.metric("Migration Hours", rw_hours)
+            rc3.metric("RackWare Cost (USD)", f"USD {rw_cost_usd:,.2f}")
+            rc4.metric("Total BOM incl. RackWare (first month)", f"USD {rw_cost_usd:,.2f} + {currency} {total_monthly:,.2f}")
+
+            st.info("💡 RackWare is priced in USD on OCI Marketplace. Convert to local currency using current exchange rate.")
+
         else:
             b1, b2, b3, b4 = st.columns(4)
             b1.metric("VMs to Migrate", len(bom_df))
