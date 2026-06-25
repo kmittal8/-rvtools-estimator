@@ -67,7 +67,7 @@ def to_excel(df):
         df.to_excel(writer, index=False, sheet_name='Migration BOM')
     return buf.getvalue()
 
-def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=None, custom_hours=False):
+def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=None, custom_hours=False, free_tier_discount=0.0):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from datetime import date
@@ -215,8 +215,15 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
     if len(linux_df) > 0:
         write_group(f"Linux / Other VMs ({len(linux_df)} VMs)", agg(linux_df), False, light_grey)
 
+    # 200 GB free tier discount row
+    if free_tier_discount > 0:
+        for col, val in enumerate(['', 'Block Volume Free Tier Discount (200 GB)', '', '', '', '', -round(free_tier_discount, 2), '200 GB/tenancy — applied once'], 1):
+            ws.cell(row=row, column=col, value=val)
+        row += 1
+
     # Grand total — recurring monthly
-    for col, val in enumerate(['', 'GRAND TOTAL — Recurring Monthly (Compute + Storage)', '', '', '', '', round(grand_total, 2), ''], 1):
+    net_total = round(grand_total - free_tier_discount, 2)
+    for col, val in enumerate(['', 'GRAND TOTAL — Recurring Monthly (Compute + Storage)', '', '', '', '', net_total, ''], 1):
         c = ws.cell(row=row, column=col, value=val)
         c.font = bold
         c.fill = light_green
@@ -496,7 +503,17 @@ if uploaded_file:
             )
             bom_df['Total/mo'] = round(bom_df['Compute/mo'] + bom_df['Storage/mo'] + bom_df['WinOS/mo'], 2)
 
-            total_monthly = round(bom_df['Total/mo'].sum(), 2)
+            # 200 GB Block Volume free tier (entire tenancy, applied once)
+            free_tier_200 = st.checkbox(
+                "Apply 200 GB Block Volume Free Tier Discount",
+                value=False,
+                help="OCI Block Volume free tier: 200 GB total per tenancy. Deducted from total storage cost once."
+            )
+            free_tier_discount = round(200 * stg_mo + 200 * BALANCED_VPU * vpu_mo, 2) if free_tier_200 else 0.0
+
+            total_monthly = round(bom_df['Total/mo'].sum() - free_tier_discount, 2)
+            if free_tier_200:
+                st.caption(f"Free tier applied: −{currency} {free_tier_discount:,.2f}/month (200 GB storage + VPU deducted)")
 
             st.divider()
 
@@ -638,7 +655,7 @@ if uploaded_file:
             if pricing_ok and prices:
                 _rw_params  = dict(ocpus=rw_ocpus, rate_usd=rw_rate_usd, days=rw_days, hrs_day=rw_hrs_day) if pricing_ok else None
                 _obj_params = dict(gb=obj_gb, rate=obj_rate) if pricing_ok else None
-                excel_data  = to_oci_excel(bom_df, prices, currency, shape, _rw_params, _obj_params, custom_hours=True)
+                excel_data  = to_oci_excel(bom_df, prices, currency, shape, _rw_params, _obj_params, custom_hours=True, free_tier_discount=free_tier_discount)
             else:
                 excel_data = to_excel(bom_df)
         except Exception:
