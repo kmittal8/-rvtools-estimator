@@ -7,65 +7,134 @@ st.set_page_config(page_title="OCI Migration Estimator", page_icon="☁️", lay
 
 st.markdown("""
 <style>
-/* Page background */
-[data-testid="stAppViewContainer"] { background: #f7f8fa; }
-[data-testid="stHeader"] { background: transparent; }
+/* ── Base ── */
+html, body { background: #eef0f4 !important; }
+[data-testid="stAppViewContainer"] { background: #eef0f4 !important; }
+[data-testid="stHeader"],[data-testid="stToolbar"],[data-testid="stDecoration"] { display:none !important; }
+.main .block-container { padding: 0 0 40px 0 !important; max-width:100% !important; }
 
-/* Metric cards */
+/* ── Metric cards ── */
 [data-testid="metric-container"] {
-    background: #ffffff;
-    border: 1px solid #e3e8ef;
-    border-radius: 10px;
-    padding: 16px 20px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    background: #ffffff !important;
+    border: 1px solid #dde2e8 !important;
+    border-radius: 6px !important;
+    padding: 18px 20px 14px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
 }
-[data-testid="stMetricValue"] { font-size: 1.6rem !important; color: #1a1a2e; }
-[data-testid="stMetricLabel"] { font-size: 0.78rem !important; color: #6b7280; font-weight: 500; }
+[data-testid="stMetricValue"] {
+    font-size: 1.65rem !important; font-weight: 700 !important; color: #1c1c1e !important;
+}
+[data-testid="stMetricLabel"] {
+    font-size: 0.72rem !important; font-weight: 600 !important;
+    color: #6e7681 !important; text-transform: uppercase !important; letter-spacing: 0.05em !important;
+}
 
-/* Tab styling */
+/* ── Tabs ── */
 [data-testid="stTabs"] button {
-    font-size: 0.92rem;
-    font-weight: 600;
-    padding: 8px 20px;
+    font-size: 0.87rem !important; font-weight: 500 !important;
+    color: #555 !important; padding: 12px 22px !important; border-radius: 0 !important;
+}
+[data-testid="stTabs"] button[aria-selected="true"] {
+    color: #1a5c31 !important; font-weight: 700 !important;
+    border-bottom: 3px solid #1a5c31 !important;
 }
 
-/* Dividers */
-hr { border-color: #e3e8ef; }
+/* ── Section headings ── */
+h3 {
+    font-size: 0.72rem !important; font-weight: 700 !important;
+    color: #6e7681 !important; text-transform: uppercase !important;
+    letter-spacing: 0.09em !important; margin: 28px 0 12px !important;
+}
 
-/* Section headers */
-h3 { color: #1a1a2e !important; font-size: 1.05rem !important; font-weight: 700 !important; margin-bottom: 4px !important; }
+/* ── Dividers ── */
+hr { border-color: #dde2e8 !important; }
 
-/* Upload box */
+/* ── DataFrames ── */
+[data-testid="stDataFrame"] {
+    border: 1px solid #dde2e8 !important; border-radius: 6px !important;
+    background: #fff !important; box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+}
+
+/* ── Inputs ── */
+[data-testid="stSelectbox"] > div > div,
+[data-testid="stNumberInput"] input {
+    background: #fff !important; border: 1px solid #c8cdd5 !important;
+    border-radius: 4px !important; color: #1c1c1e !important;
+}
+
+/* ── File uploader ── */
 [data-testid="stFileUploader"] {
-    background: #ffffff;
-    border: 2px dashed #c7d2e0;
-    border-radius: 10px;
-    padding: 8px;
+    background: #fff !important; border: 2px dashed #c0c8d2 !important;
+    border-radius: 6px !important;
 }
 
-/* Info/warning banners */
-[data-testid="stAlert"] { border-radius: 8px; }
+/* ── Alerts ── */
+[data-testid="stAlert"] {
+    border-radius: 4px !important;
+    border-left: 4px solid #e0a800 !important;
+    background: #fffcf0 !important;
+}
+
+/* ── Expanders ── */
+[data-testid="stExpander"] {
+    background: #fff !important; border: 1px solid #dde2e8 !important;
+    border-radius: 6px !important; box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+}
+
+/* ── Download button ── */
+[data-testid="stDownloadButton"] button {
+    background: #1a5c31 !important; color: #fff !important;
+    border: none !important; border-radius: 4px !important;
+    font-weight: 600 !important; padding: 10px 22px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15) !important;
+}
+[data-testid="stDownloadButton"] button:hover { background: #144d28 !important; }
+
+/* ── Captions ── */
+[data-testid="stCaptionContainer"] p { color: #6e7681 !important; font-size: 0.78rem !important; }
+
+/* ── Content padding inside tabs ── */
+[data-testid="stTabsContent"] { padding: 24px 32px !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Header ─────────────────────────────────────────────────
+# ── Header bar ─────────────────────────────────────────────
 st.markdown("""
-<div style="display:flex;align-items:center;gap:14px;margin-bottom:4px;">
-  <span style="font-size:2.2rem;">☁️</span>
-  <div>
-    <div style="font-size:1.6rem;font-weight:800;color:#1a1a2e;line-height:1.1;">OCI Migration Estimator</div>
-    <div style="font-size:0.82rem;color:#6b7280;margin-top:2px;">Powered by live OCI pricing API &nbsp;·&nbsp; Upload RVTools export to begin</div>
+<div style="background:#1a5c31;padding:14px 32px 13px;
+            display:flex;align-items:center;justify-content:space-between;
+            margin:-1px -1px 0 -1px;">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div style="width:36px;height:36px;border-radius:8px;
+                background:rgba(255,255,255,0.15);
+                display:flex;align-items:center;justify-content:center;font-size:1.2rem;">☁️</div>
+    <div>
+      <div style="font-size:1.05rem;font-weight:700;color:#fff;line-height:1.2;
+                  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+        OCI Migration Estimator</div>
+      <div style="font-size:0.71rem;color:rgba(255,255,255,0.6);margin-top:2px;letter-spacing:0.02em;">
+        VMware → OCI &nbsp;·&nbsp; Live pricing API &nbsp;·&nbsp; Upload RVTools export to begin</div>
+    </div>
   </div>
+  <div style="font-size:0.68rem;color:rgba(255,255,255,0.45);letter-spacing:0.02em;">
+    Not an official Oracle product</div>
 </div>
 """, unsafe_allow_html=True)
 
-st.warning(
-    "**Not an official Oracle product.** Always validate with the "
-    "[OCI Cost Estimator](https://www.oracle.com/anz/cloud/costestimator.html) before sharing with customers.",
-    icon="⚠️"
-)
-
+st.markdown("""
+<div style="background:#fff;border-bottom:1px solid #dde3ea;padding:10px 32px;
+            display:flex;align-items:center;gap:10px;">
+  <span style="color:#f5a623;font-size:1rem;">⚠️</span>
+  <span style="font-size:0.8rem;color:#555;">
+    Always validate pricing with the official
+    <a href="https://www.oracle.com/anz/cloud/costestimator.html" target="_blank"
+       style="color:#2d6a3f;font-weight:600;">OCI Cost Estimator</a>
+    before sharing with customers.
+  </span>
+</div>
+<div style="background:#fff;padding:16px 32px;border-bottom:1px solid #dde3ea;">
+""", unsafe_allow_html=True)
 uploaded_file = st.file_uploader("Upload RVTools Excel export (.xlsx)", type=["xlsx"], label_visibility="collapsed")
+st.markdown("</div>", unsafe_allow_html=True)
 
 VMWARE_NAME_PREFIXES = ('vcls-', 'z-vrah-', 'z-vra-')
 HOURS_PER_MONTH = 744
@@ -397,49 +466,102 @@ if uploaded_file:
 
     # ── TAB 1: Infrastructure Summary ─────────────────────
     with tab1:
-        st.markdown("### 🖥️ Physical Hosts")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Physical Hosts", len(vHost_filtered))
-        c2.metric("Total Cores", total_cores)
-        c3.metric("Total Memory", f"{total_memory_gb} GB")
-        st.divider()
-
-        st.markdown("### ⚡ CPU & Memory Utilisation")
-        u1, u2, u3, u4 = st.columns(4)
-        u1.metric("Avg CPU Usage", f"{avg_cpu_usage}%")
-        u2.metric("Actual Core Usage", cores_based_on_avg_cpu)
-        u3.metric("Avg Memory Usage", f"{avg_mem_usage}%")
-        u4.metric("Actual Memory Usage", f"{mem_based_on_avg_usage} GB")
-        st.divider()
-
-        st.markdown("### 🗂️ Powered-On VMs")
-        v1, v2, v3 = st.columns(3)
-        v1.metric("Total Powered-On VMs", len(powered_on_vms))
-        v2.metric("Workload VMs (to migrate)", len(real_vms))
-        v3.metric("VMware Infra VMs (excluded)", len(vmware_vms))
-        st.divider()
-
-        st.markdown("### 🪟 OS Breakdown — Workload VMs")
+        # OS breakdown data (needed for HTML below)
         real_os_counts = (
-            real_vms[os_col].fillna('Unknown')
-            .value_counts().reset_index()
+            real_vms[os_col].fillna('Unknown').value_counts().reset_index()
         )
         real_os_counts.columns = ['OS', 'Count']
         real_os_counts['Family'] = real_os_counts['OS'].apply(os_family)
+        win_os_rows = real_os_counts[real_os_counts['Family'] == 'Windows']
+        lin_os_rows = real_os_counts[real_os_counts['Family'] != 'Windows']
 
-        col_win, col_lin = st.columns(2)
-        with col_win:
-            st.markdown("**🪟 Windows**")
-            win_df = real_os_counts[real_os_counts['Family'] == 'Windows'][['OS', 'Count']].reset_index(drop=True)
-            st.dataframe(win_df, use_container_width=True, hide_index=True)
-        with col_lin:
-            st.markdown("**🐧 Linux / Other**")
-            other_df = real_os_counts[real_os_counts['Family'] != 'Windows'][['OS', 'Count']].reset_index(drop=True)
-            st.dataframe(other_df, use_container_width=True, hide_index=True)
+        def os_rows_html(df):
+            if df.empty:
+                return '<tr><td colspan="2" style="color:#aaa;font-style:italic;padding:6px 8px;">None</td></tr>'
+            return ''.join(
+                f'<tr><td style="padding:5px 8px;border-bottom:1px solid #eef0f4;color:#333;font-size:0.82rem;">{r.OS}</td>'
+                f'<td style="padding:5px 8px;border-bottom:1px solid #eef0f4;color:#1a5c31;font-weight:700;text-align:right;">{r.Count}</td></tr>'
+                for r in df.itertuples()
+            )
+
+        def stat(label, value, sub=None):
+            sub_html = f'<div style="font-size:0.72rem;color:#999;margin-top:2px;">{sub}</div>' if sub else ''
+            return f"""
+            <div style="background:#fff;border:1px solid #dde2e8;border-radius:6px;
+                        padding:16px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.07);">
+              <div style="font-size:0.68rem;font-weight:600;color:#888;
+                          text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">{label}</div>
+              <div style="font-size:1.6rem;font-weight:700;color:#1c1c1e;line-height:1.1;">{value}</div>
+              {sub_html}
+            </div>"""
+
+        st.html(f"""
+        <div style="padding:24px 28px 0;">
+
+          <!-- Row 1: Host + CPU + Memory -->
+          <div style="font-size:0.7rem;font-weight:700;color:#888;text-transform:uppercase;
+                      letter-spacing:0.09em;margin-bottom:10px;">🖥️ &nbsp;Physical Infrastructure</div>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:24px;">
+            {stat("Physical Hosts", len(vHost_filtered))}
+            {stat("Total Cores", total_cores)}
+            {stat("Total Memory", f"{total_memory_gb} GB")}
+            {stat("Avg CPU Usage", f"{avg_cpu_usage}%", "weighted by host cores")}
+            {stat("Actual Core Usage", cores_based_on_avg_cpu, "cores at avg utilisation")}
+            {stat("Actual Mem Usage", f"{mem_based_on_avg_usage} GB", f"{avg_mem_usage}% of {total_memory_gb} GB")}
+          </div>
+
+          <!-- Row 2: VMs -->
+          <div style="font-size:0.7rem;font-weight:700;color:#888;text-transform:uppercase;
+                      letter-spacing:0.09em;margin-bottom:10px;">🗂️ &nbsp;Powered-On VMs</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px;">
+            {stat("Total Powered-On VMs", len(powered_on_vms))}
+            {stat("Workload VMs to Migrate", len(real_vms), "VMware infra excluded")}
+            {stat("VMware Infra VMs (excluded)", len(vmware_vms), "vCLS, vRA, vCenter, Photon")}
+          </div>
+
+          <!-- Row 3: OS Breakdown side by side -->
+          <div style="font-size:0.7rem;font-weight:700;color:#888;text-transform:uppercase;
+                      letter-spacing:0.09em;margin-bottom:10px;">💿 &nbsp;OS Breakdown — Workload VMs</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px;">
+            <div style="background:#fff;border:1px solid #dde2e8;border-radius:6px;
+                        box-shadow:0 1px 3px rgba(0,0,0,0.07);overflow:hidden;">
+              <div style="padding:10px 14px 8px;background:#f8f9fb;border-bottom:1px solid #eef0f4;
+                          font-size:0.78rem;font-weight:700;color:#333;">🪟 &nbsp;Windows
+                <span style="float:right;background:#1a5c31;color:#fff;border-radius:10px;
+                             padding:1px 8px;font-size:0.7rem;">{len(win_os_rows)} versions</span>
+              </div>
+              <table style="width:100%;border-collapse:collapse;">
+                <tr style="background:#f8f9fb;">
+                  <th style="padding:5px 8px;text-align:left;font-size:0.68rem;color:#888;font-weight:600;text-transform:uppercase;">OS</th>
+                  <th style="padding:5px 8px;text-align:right;font-size:0.68rem;color:#888;font-weight:600;text-transform:uppercase;">VMs</th>
+                </tr>
+                {os_rows_html(win_os_rows)}
+              </table>
+            </div>
+            <div style="background:#fff;border:1px solid #dde2e8;border-radius:6px;
+                        box-shadow:0 1px 3px rgba(0,0,0,0.07);overflow:hidden;">
+              <div style="padding:10px 14px 8px;background:#f8f9fb;border-bottom:1px solid #eef0f4;
+                          font-size:0.78rem;font-weight:700;color:#333;">🐧 &nbsp;Linux / Other
+                <span style="float:right;background:#555;color:#fff;border-radius:10px;
+                             padding:1px 8px;font-size:0.7rem;">{len(lin_os_rows)} versions</span>
+              </div>
+              <table style="width:100%;border-collapse:collapse;">
+                <tr style="background:#f8f9fb;">
+                  <th style="padding:5px 8px;text-align:left;font-size:0.68rem;color:#888;font-weight:600;text-transform:uppercase;">OS</th>
+                  <th style="padding:5px 8px;text-align:right;font-size:0.68rem;color:#888;font-weight:600;text-transform:uppercase;">VMs</th>
+                </tr>
+                {os_rows_html(lin_os_rows)}
+              </table>
+            </div>
+          </div>
+
+        </div>
+        """)
 
         with st.expander("VMware Infrastructure VMs (excluded from migration)"):
             st.caption("vCLS agents, vRealize agents, Photon CRX, vCenter — platform VMs, not customer workloads.")
-            vmware_display = vmware_vms[['VM', os_col, 'CPUs', 'Memory GB']].rename(columns={os_col: 'OS', 'CPUs': 'vCPUs'}).reset_index(drop=True)
+            vmware_display = vmware_vms[['VM', os_col, 'CPUs', 'Memory GB']].rename(
+                columns={os_col: 'OS', 'CPUs': 'vCPUs'}).reset_index(drop=True)
             st.dataframe(vmware_display, use_container_width=True, hide_index=True)
 
         with st.expander("Raw vHost Data"):
@@ -484,9 +606,13 @@ if uploaded_file:
         if pricing_ok:
             win_os_hr = prices.get('B88318', 0)
 
-            st.caption(f"Shape: {shape} | On-Demand | Storage: Balanced (10 VPU) | Prices as of OCI API ({currency})")
+            st.markdown(f"**Shape:** `{shape}` &nbsp;|&nbsp; **Capacity:** On-Demand &nbsp;|&nbsp; **Storage:** Balanced (10 VPU) &nbsp;|&nbsp; **Prices:** Live OCI API ({currency})")
             st.info("⚠️ Quote is for investment proposal only.")
-            st.caption("Uncheck **Migrate** to exclude a VM. Edit **Hrs/Month** for VMs that won't run 24/7 (compute billed by hour; storage always full month). Check **BYOL** for Windows VMs with own license.")
+            st.markdown("""
+- **Uncheck `Migrate`** — exclude a VM from the BOM entirely
+- **Edit `Hrs/Month`** — for VMs that won't run 24/7; compute billed by actual hours, storage always full month
+- **Check `BYOL`** — Windows VMs where customer brings their own license (removes OS cost)
+""")
 
             # Editable table
             edited = st.data_editor(
@@ -567,39 +693,50 @@ if uploaded_file:
 
             summary_html = f"""
 <style>
-.bs-table {{ width: 100%; border-collapse: collapse; font-family: sans-serif; }}
-.bs-table td {{ padding: 6px 12px 6px 0; vertical-align: top; width: 20%; }}
-.bs-label {{ font-size: 0.78rem; color: #888; margin-bottom: 2px; }}
-.bs-value {{ font-size: 1.6rem; font-weight: 600; color: #111; }}
-.bs-child .bs-value {{ font-size: 1.15rem; font-weight: 500; color: #333; }}
-.bs-child .bs-label {{ padding-left: 18px; }}
-.bs-child .bs-value {{ padding-left: 18px; }}
-.bs-indent {{ color: #aaa; margin-right: 4px; }}
-.bs-divider td {{ border-top: 1px solid #e5e5e5; padding-top: 10px; }}
+.bs-wrap {{
+  background: #fff;
+  border: 1px solid #dde3ea;
+  border-top: 3px solid #2d6a3f;
+  border-radius: 4px;
+  padding: 20px 24px 16px;
+  margin: 4px 0 8px;
+}}
+.bs-table {{ width: 100%; border-collapse: collapse; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }}
+.bs-table td {{ padding: 4px 12px 4px 0; vertical-align: top; width: 20%; }}
+.bs-label {{ font-size: 0.7rem; color: #888; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.05em; }}
+.bs-value {{ font-size: 1.5rem; font-weight: 700; color: #1a1a1a; line-height: 1.15; }}
+.bs-value.accent {{ color: #2d6a3f; }}
+.bs-child .bs-value {{ font-size: 1.0rem; font-weight: 500; color: #444; }}
+.bs-child .bs-label {{ padding-left: 14px; }}
+.bs-child .bs-value {{ padding-left: 14px; }}
+.bs-indent {{ color: #bbb; margin-right: 4px; }}
+.bs-divider td {{ border-top: 1px solid #e8eaed; padding-top: 12px; }}
 </style>
+<div class="bs-wrap">
 <table class="bs-table">
   <tr>
-    <td><div class="bs-label">Total VMs to Migrate</div><div class="bs-value">{len(bom_df)}</div></td>
+    <td><div class="bs-label">VMs to Migrate</div><div class="bs-value">{len(bom_df)}</div></td>
     <td><div class="bs-label">Total OCPUs</div><div class="bs-value">{int(bom_df['OCPUs'].sum())}</div></td>
     <td><div class="bs-label">Total RAM</div><div class="bs-value">{round(bom_df['Memory GB'].sum(), 1)} GB</div></td>
     <td><div class="bs-label">Total Storage</div><div class="bs-value">{round(bom_df['Provisioned TB'].sum(), 2)} TB</div></td>
-    <td><div class="bs-label">Est. Monthly Cost ({currency})</div><div class="bs-value">{currency} {total_monthly:,.2f}</div></td>
+    <td><div class="bs-label">Est. Monthly Cost ({currency})</div><div class="bs-value accent">{currency} {total_monthly:,.2f}</div></td>
   </tr>
   <tr class="bs-divider bs-child">
-    <td><div class="bs-label"><span class="bs-indent">└</span> Windows VMs ({byol_label})</div><div class="bs-value">{len(win)}</div></td>
-    <td><div class="bs-label"><span class="bs-indent">└</span> Windows OCPUs</div><div class="bs-value">{int(win['OCPUs'].sum())}</div></td>
-    <td><div class="bs-label"><span class="bs-indent">└</span> Windows RAM</div><div class="bs-value">{round(win['Memory GB'].sum(), 1)} GB</div></td>
-    <td><div class="bs-label"><span class="bs-indent">└</span> Windows Storage</div><div class="bs-value">{round(win['Provisioned TB'].sum(), 2)} TB</div></td>
+    <td><div class="bs-label"><span class="bs-indent">└</span> Windows ({byol_label})</div><div class="bs-value">{len(win)}</div></td>
+    <td><div class="bs-label"><span class="bs-indent">└</span> Win OCPUs</div><div class="bs-value">{int(win['OCPUs'].sum())}</div></td>
+    <td><div class="bs-label"><span class="bs-indent">└</span> Win RAM</div><div class="bs-value">{round(win['Memory GB'].sum(), 1)} GB</div></td>
+    <td><div class="bs-label"><span class="bs-indent">└</span> Win Storage</div><div class="bs-value">{round(win['Provisioned TB'].sum(), 2)} TB</div></td>
     <td><div class="bs-label"><span class="bs-indent">└</span> Windows Cost ({currency})</div><div class="bs-value">{currency} {round(win['Total/mo'].sum(), 2):,.2f}</div></td>
   </tr>
   <tr class="bs-child">
-    <td><div class="bs-label"><span class="bs-indent">└</span> Linux / Other VMs</div><div class="bs-value">{len(lin)}</div></td>
+    <td><div class="bs-label"><span class="bs-indent">└</span> Linux / Other</div><div class="bs-value">{len(lin)}</div></td>
     <td><div class="bs-label"><span class="bs-indent">└</span> Linux OCPUs</div><div class="bs-value">{int(lin['OCPUs'].sum())}</div></td>
     <td><div class="bs-label"><span class="bs-indent">└</span> Linux RAM</div><div class="bs-value">{round(lin['Memory GB'].sum(), 1)} GB</div></td>
     <td><div class="bs-label"><span class="bs-indent">└</span> Linux Storage</div><div class="bs-value">{round(lin['Provisioned TB'].sum(), 2)} TB</div></td>
     <td><div class="bs-label"><span class="bs-indent">└</span> Linux Cost ({currency})</div><div class="bs-value">{currency} {round(lin['Total/mo'].sum(), 2):,.2f}</div></td>
   </tr>
 </table>
+</div>
 """
             st.html(summary_html)
 
