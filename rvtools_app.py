@@ -67,144 +67,219 @@ def to_excel(df):
         df.to_excel(writer, index=False, sheet_name='Migration BOM')
     return buf.getvalue()
 
-def to_oci_excel(bom_df, prices, currency, shape):
+def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=None):
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from datetime import date
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Migration BOM"
 
-    # Column widths
     ws.column_dimensions['A'].width = 12
     ws.column_dimensions['B'].width = 60
-    ws.column_dimensions['C'].width = 12
-    ws.column_dimensions['D'].width = 13
-    ws.column_dimensions['E'].width = 11
-    ws.column_dimensions['F'].width = 13
-    ws.column_dimensions['G'].width = 14
+    ws.column_dimensions['C'].width = 14
+    ws.column_dimensions['D'].width = 14
+    ws.column_dimensions['E'].width = 12
+    ws.column_dimensions['F'].width = 14
+    ws.column_dimensions['G'].width = 16
     ws.column_dimensions['H'].width = 15
     ws.column_dimensions['I'].width = 15
 
-    header_font   = Font(bold=True)
-    red_font      = Font(bold=True, color="FF0000")
-    group_font    = Font(bold=True)
-    light_blue    = PatternFill("solid", fgColor="DCE6F1")
-    wrap          = Alignment(wrap_text=True, vertical="top")
-    thin_border   = Border(
+    bold        = Font(bold=True)
+    bold_lg     = Font(bold=True, size=12)
+    red_bold    = Font(bold=True, color="FF0000")
+    group_font  = Font(bold=True)
+    light_blue  = PatternFill("solid", fgColor="DCE6F1")
+    light_green = PatternFill("solid", fgColor="E2EFDA")
+    light_grey  = PatternFill("solid", fgColor="F2F2F2")
+    wrap        = Alignment(wrap_text=True, vertical="top")
+    thin_border = Border(
         left=Side(style='thin'), right=Side(style='thin'),
         top=Side(style='thin'),  bottom=Side(style='thin')
     )
 
+    ocpu_rate   = prices[SKU_E4_OCPU]
+    mem_rate    = prices[SKU_E4_MEM]
+    stg_rate    = prices[SKU_BLOCK_STG]
+    vpu_rate    = prices[SKU_BLOCK_VPU]
+    win_os_rate = prices.get('B88318', 0)
+
+    # Aggregate by OS family + BYOL
+    win_byol  = bom_df[(bom_df['OS Family'] == 'Windows') & (bom_df['BYOL'] == True)]
+    win_li    = bom_df[(bom_df['OS Family'] == 'Windows') & (bom_df['BYOL'] == False)]
+    linux_df  = bom_df[bom_df['OS Family'] != 'Windows']
+
+    def agg(df):
+        return {
+            'vms':    len(df),
+            'ocpus':  int(df['OCPUs'].sum()),
+            'mem':    float(df['Memory GB'].sum()),
+            'stg':    float(df['Provisioned GB'].sum()),
+        }
+
+    def group_cost(a, include_win_os=False):
+        compute = (a['ocpus'] * ocpu_rate + a['mem'] * mem_rate) * HOURS_PER_MONTH
+        storage = a['stg'] * stg_rate + (a['stg'] * BALANCED_VPU) * vpu_rate
+        wos     = (a['ocpus'] * win_os_rate * HOURS_PER_MONTH) if include_win_os else 0
+        return round(compute, 2), round(storage, 2), round(wos, 2), round(compute + storage + wos, 2)
+
     row = 1
     today = date.today().strftime("%m/%d/%Y")
-    ws.cell(row=row, column=1, value=f"Oracle Investment Proposal (as of {today})").font = Font(bold=True, size=12)
+    ws.cell(row=row, column=1, value=f"Oracle Investment Proposal (as of {today})").font = bold_lg
     row += 1
     ws.cell(row=row, column=1, value="Reference label: Migration Estimate")
     row += 1
     ws.cell(row=row, column=1, value=f"Currency: {currency}")
     row += 1
-    ws.cell(row=row, column=1, value="Realm: PUBLIC")
+    ws.cell(row=row, column=1, value=f"Shape: {shape}  |  Capacity Type: On-Demand  |  Storage: Balanced (10 VPU)")
     row += 1
-    ws.cell(row=row, column=1, value="Service Type: IAAS")
-    row += 1
+    ws.cell(row=row, column=1, value="Realm: PUBLIC  |  Service Type: IAAS")
+    row += 2
 
-    # Header row
-    headers = ["Part", "Description", "Part Qty", "Instance Qty", "Usage Qty", "Unit Price", "Monthly Cost", "Custom Label", "Custom Note"]
+    # Column headers
+    headers = ["Part", "Description", "VMs", "Total OCPUs", "Total Mem GB", "Unit Price", "Monthly Cost", "Notes"]
     for col, h in enumerate(headers, 1):
-        cell = ws.cell(row=row, column=col, value=h)
-        cell.font = header_font
-        cell.fill = light_blue
+        c = ws.cell(row=row, column=col, value=h)
+        c.font = bold
+        c.fill = light_blue
     row += 1
 
-    ocpu_rate  = prices[SKU_E4_OCPU]
-    mem_rate   = prices[SKU_E4_MEM]
-    stg_rate   = prices[SKU_BLOCK_STG]
-    vpu_rate   = prices[SKU_BLOCK_VPU]
     grand_total = 0.0
 
-    for _, vm in bom_df.iterrows():
-        ocpus   = int(vm['OCPUs'])
-        mem_gb  = float(vm['Memory GB'])
-        stg_gb  = float(vm['Provisioned GB'])
-        vpu_qty = int(stg_gb * BALANCED_VPU)
+    def write_group(label, a, include_win_os, fill):
+        nonlocal row, grand_total
+        compute, storage, wos, total = group_cost(a, include_win_os)
+        grand_total += total
+        vpu_qty = int(a['stg'] * BALANCED_VPU)
 
-        vm_compute = (ocpus * ocpu_rate + mem_gb * mem_rate) * HOURS_PER_MONTH
-        win_os_rate = prices.get('B88318', 0)
-        is_windows  = str(vm.get('OS Family', '')).lower() == 'windows'
-        byol        = bool(vm.get('BYOL', False))
-        win_os_cost = (ocpus * win_os_rate * HOURS_PER_MONTH) if (is_windows and not byol) else 0
-
-        vm_storage = stg_gb * stg_rate + vpu_qty * vpu_rate
-        vm_total   = vm_compute + vm_storage + win_os_cost
-        grand_total += vm_total
-
-        # VM name group header
-        os_label = f"{vm['VM']}  ({'Windows BYOL' if byol else vm.get('OS Family','')}{' — License Included' if is_windows and not byol else ''})"
-        ws.cell(row=row, column=2, value=os_label).font = group_font
+        # Group header
+        hc = ws.cell(row=row, column=2, value=label)
+        hc.font = group_font
+        hc.fill = fill
+        ws.cell(row=row, column=3, value=a['vms']).fill = fill
+        ws.cell(row=row, column=4, value=a['ocpus']).fill = fill
+        ws.cell(row=row, column=5, value=round(a['mem'], 1)).fill = fill
+        ws.cell(row=row, column=7, value=total).font = group_font
+        ws.cell(row=row, column=7).fill = fill
         row += 1
 
-        # Sub-group: Virtual Machine
-        ws.cell(row=row, column=2, value="Virtual Machine").font = group_font
+        # OCPU
+        ocpu_cost = a['ocpus'] * ocpu_rate * HOURS_PER_MONTH
+        for col, val in enumerate([SKU_E4_OCPU, f"Compute - E4 - OCPU (OCPU Per Hour) ×{HOURS_PER_MONTH} hrs",
+                                    '', a['ocpus'], '', ocpu_rate, round(ocpu_cost, 2), "On-Demand"], 1):
+            ws.cell(row=row, column=col, value=val).alignment = wrap
         row += 1
 
-        # OCPU row
-        ocpu_cost = ocpus * ocpu_rate * HOURS_PER_MONTH
-        for col, val in enumerate([SKU_E4_OCPU, SKU_DESCRIPTIONS[SKU_E4_OCPU][0], ocpus, 1, HOURS_PER_MONTH, ocpu_rate, round(ocpu_cost, 7)], 1):
-            c = ws.cell(row=row, column=col, value=val)
-            c.alignment = wrap
-        ws.row_dimensions[row].height = 30
-        row += 1
-
-        # Memory row
-        mem_cost = mem_gb * mem_rate * HOURS_PER_MONTH
-        for col, val in enumerate([SKU_E4_MEM, SKU_DESCRIPTIONS[SKU_E4_MEM][0], mem_gb, 1, HOURS_PER_MONTH, mem_rate, round(mem_cost, 7)], 1):
-            c = ws.cell(row=row, column=col, value=val)
-            c.alignment = wrap
-        ws.row_dimensions[row].height = 30
-        row += 1
-
-        # Sub-group: Boot Volume
-        ws.cell(row=row, column=2, value="Boot Volume").font = group_font
-        row += 1
-
-        # Storage row
-        stg_cost = stg_gb * stg_rate
-        for col, val in enumerate([SKU_BLOCK_STG, SKU_DESCRIPTIONS[SKU_BLOCK_STG][0], stg_gb, 1, 1, stg_rate, round(stg_cost, 7)], 1):
+        # Memory
+        mem_cost = a['mem'] * mem_rate * HOURS_PER_MONTH
+        for col, val in enumerate([SKU_E4_MEM, f"Compute - E4 - Memory (GB Per Hour) ×{HOURS_PER_MONTH} hrs",
+                                    '', '', round(a['mem'], 1), mem_rate, round(mem_cost, 2), "On-Demand"], 1):
             ws.cell(row=row, column=col, value=val)
         row += 1
 
-        # VPU row
+        # Block Storage
+        stg_cost = a['stg'] * stg_rate
+        for col, val in enumerate([SKU_BLOCK_STG, f"Block Volume - Storage ({round(a['stg'], 1)} GB)",
+                                    '', '', round(a['stg'], 1), stg_rate, round(stg_cost, 2), "Balanced 10 VPU"], 1):
+            ws.cell(row=row, column=col, value=val)
+        row += 1
+
+        # VPU
         vpu_cost = vpu_qty * vpu_rate
-        for col, val in enumerate([SKU_BLOCK_VPU, SKU_DESCRIPTIONS[SKU_BLOCK_VPU][0], vpu_qty, 1, 1, vpu_rate, round(vpu_cost, 7)], 1):
+        for col, val in enumerate([SKU_BLOCK_VPU, f"Block Volume - Performance Units ({vpu_qty} VPU)",
+                                    '', '', vpu_qty, vpu_rate, round(vpu_cost, 2), "10 VPU/GB (Balanced)"], 1):
             ws.cell(row=row, column=col, value=val)
         row += 1
 
-        # Windows OS row (License Included only)
-        if is_windows and not byol:
-            ws.cell(row=row, column=2, value="Compute - OS Images").font = group_font
-            row += 1
-            for col, val in enumerate(['B88318', 'Compute - Windows OS (OCPU Per Hour)', ocpus, 1, HOURS_PER_MONTH, win_os_rate, round(win_os_cost, 7)], 1):
+        # Windows OS
+        if include_win_os and wos > 0:
+            for col, val in enumerate(['B88318', f"Compute - Windows OS (OCPU Per Hour) ×{HOURS_PER_MONTH} hrs",
+                                        '', a['ocpus'], '', win_os_rate, round(wos, 2), "License Included"], 1):
                 ws.cell(row=row, column=col, value=val)
             row += 1
 
-        # VM subtotal
-        ws.cell(row=row, column=2, value="VM Monthly Total").font = group_font
-        ws.cell(row=row, column=7, value=round(vm_total, 7)).font = group_font
-        row += 2  # blank line between VMs
+        row += 1  # blank line
 
-    # Grand total
-    ws.cell(row=row, column=2, value="GRAND TOTAL — All VMs").font = Font(bold=True)
-    ws.cell(row=row, column=7, value=round(grand_total, 2)).font = Font(bold=True)
+    if len(win_li) > 0:
+        write_group(f"Windows VMs — License Included ({len(win_li)} VMs)", agg(win_li), True, light_grey)
+    if len(win_byol) > 0:
+        write_group(f"Windows VMs — BYOL ({len(win_byol)} VMs)", agg(win_byol), False, light_grey)
+    if len(linux_df) > 0:
+        write_group(f"Linux / Other VMs ({len(linux_df)} VMs)", agg(linux_df), False, light_grey)
+
+    # Grand total — recurring monthly
+    for col, val in enumerate(['', 'GRAND TOTAL — Recurring Monthly (Compute + Storage)', '', '', '', '', round(grand_total, 2), ''], 1):
+        c = ws.cell(row=row, column=col, value=val)
+        c.font = bold
+        c.fill = light_green
     row += 2
 
-    # "Quote is for investment proposal only."
+    # --- RackWare section ---
+    if rw_params:
+        ws.cell(row=row, column=1, value="RackWare Migration Cost (One-Time)").font = bold
+        ws.cell(row=row, column=1).fill = light_blue
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
+        row += 1
+
+        rw_ocpus   = rw_params['ocpus']
+        rw_rate    = rw_params['rate_usd']
+        rw_days    = rw_params['days']
+        rw_hrs     = rw_params['hrs_day']
+        rw_hours   = rw_days * rw_hrs
+        rw_cost    = round(rw_ocpus * rw_rate * rw_hours, 2)
+
+        params = [
+            ("OCPUs to Migrate", rw_ocpus),
+            ("RackWare Rate (USD/OCPU/hr)", f"USD {rw_rate}"),
+            ("Migration Duration (days)", rw_days),
+            ("Hours/day", rw_hrs),
+            ("Total Migration Hours", rw_hours),
+        ]
+        for label, val in params:
+            ws.cell(row=row, column=2, value=label)
+            ws.cell(row=row, column=3, value=val)
+            row += 1
+
+        for col, val in enumerate(['', 'RackWare Total (One-Time, USD)', '', '', '', '', f"USD {rw_cost:,.2f}", 'PAYGO — OCI Marketplace'], 1):
+            c = ws.cell(row=row, column=col, value=val)
+            c.font = bold
+        row += 2
+
+    # --- Object Storage Backups section ---
+    if obj_params:
+        ws.cell(row=row, column=1, value="Object Storage — Backups (Monthly)").font = bold
+        ws.cell(row=row, column=1).fill = light_blue
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
+        row += 1
+
+        obj_gb      = obj_params['gb']
+        obj_rate    = obj_params['rate']
+        free_gb     = 20
+        billable    = max(0, obj_gb - free_gb)
+        obj_cost    = round(billable * obj_rate, 2)
+
+        ws.cell(row=row, column=2, value="Estimated Backup Storage (GB)")
+        ws.cell(row=row, column=3, value=obj_gb)
+        row += 1
+        ws.cell(row=row, column=2, value="Free Tier Deduction (GB)")
+        ws.cell(row=row, column=3, value=free_gb)
+        row += 1
+        ws.cell(row=row, column=2, value="Billable Storage (GB)")
+        ws.cell(row=row, column=3, value=billable)
+        row += 1
+
+        for col, val in enumerate([SKU_OBJ_STG, 'Object Storage - Standard (GB/month)', '', '', billable, obj_rate, obj_cost, 'First 20 GB free'], 1):
+            c = ws.cell(row=row, column=col, value=val)
+            c.font = bold
+        row += 2
+
+    # Quote note
     cell = ws.cell(row=row, column=1, value="Quote is for investment proposal only.")
-    cell.font = red_font
+    cell.font = red_bold
     row += 2
 
-    # Disclaimer box
+    # Disclaimer
     disc_cell = ws.cell(row=row, column=1, value=DISCLAIMER)
     disc_cell.alignment = Alignment(wrap_text=True, vertical="top")
     disc_cell.border = thin_border
@@ -535,7 +610,9 @@ if uploaded_file:
 
         try:
             if pricing_ok and prices:
-                excel_data = to_oci_excel(bom_df, prices, currency, shape)
+                _rw_params  = dict(ocpus=rw_ocpus, rate_usd=rw_rate_usd, days=rw_days, hrs_day=rw_hrs_day) if pricing_ok else None
+                _obj_params = dict(gb=obj_gb, rate=obj_rate) if pricing_ok else None
+                excel_data  = to_oci_excel(bom_df, prices, currency, shape, _rw_params, _obj_params)
             else:
                 excel_data = to_excel(bom_df)
         except Exception:
