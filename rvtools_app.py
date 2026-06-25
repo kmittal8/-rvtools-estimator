@@ -25,6 +25,7 @@ SKU_E4_OCPU   = 'B93113'
 SKU_E4_MEM    = 'B93114'
 SKU_BLOCK_STG = 'B91961'
 SKU_BLOCK_VPU = 'B91962'
+SKU_OBJ_STG   = 'B96484'
 
 @st.cache_data(ttl=3600)
 def fetch_oci_prices(currency):
@@ -59,6 +60,12 @@ SKU_DESCRIPTIONS = {
     SKU_BLOCK_STG: ("Storage - Block Volume - Storage (Gigabyte Storage Capacity Per Month)",      "Gigabyte Storage Capacity Per Month"),
     SKU_BLOCK_VPU: ("Storage - Block Volume - Performance Units (Performance Units Per Gigabyte Per Month)", "Performance Units Per Gigabyte Per Month"),
 }
+
+def to_excel(df):
+    buf = BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Migration BOM')
+    return buf.getvalue()
 
 def to_oci_excel(bom_df, prices, currency, shape):
     from openpyxl import Workbook
@@ -316,6 +323,8 @@ if uploaded_file:
         shape = col_shape.selectbox("OCI Shape", ["VM.Standard.E4.Flex", "VM.Standard.E5.Flex"], index=0)
 
         # Fetch prices
+        pricing_ok = False
+        prices = {}
         with st.spinner("Fetching OCI pricing..."):
             try:
                 prices = fetch_oci_prices(currency)
@@ -475,6 +484,34 @@ if uploaded_file:
 
             st.info("💡 RackWare is priced in USD on OCI Marketplace. Convert to local currency using current exchange rate.")
 
+            st.divider()
+
+            # --- Object Storage (Backups) Calculator ---
+            st.subheader("Object Storage — Backups (Optional)")
+            st.caption("OCI Standard Object Storage for VM backups / snapshots post-migration. Customer estimate — adjust to actual backup retention needs.")
+
+            obj_rate = prices.get(SKU_OBJ_STG, 0.0436101)
+            os_col1, os_col2, os_col3 = st.columns(3)
+            obj_gb = os_col1.number_input(
+                "Estimated Backup Storage (GB)",
+                value=1024,
+                min_value=0,
+                step=128,
+                help="First 20 GB free. Enter total backup storage required across all VMs."
+            )
+            free_gb = 20
+            billable_gb = max(0, obj_gb - free_gb)
+            obj_cost_mo = round(billable_gb * obj_rate, 2)
+
+            os_col2.metric("Billable GB (after 20 GB free)", f"{billable_gb:,} GB")
+            os_col3.metric(f"Est. Monthly Cost ({currency})", f"{currency} {obj_cost_mo:,.2f}")
+
+            st.caption(f"Formula: ({obj_gb:,} GB − {free_gb} GB free) × {currency} {obj_rate}/GB/mo = {currency} {obj_cost_mo:,.2f}/month  |  SKU: {SKU_OBJ_STG}")
+
+            total_with_obj = round(total_monthly + obj_cost_mo, 2)
+            if obj_cost_mo > 0:
+                st.info(f"💡 Including object storage backups: **{currency} {total_with_obj:,.2f}/month** (compute + block storage + backups)")
+
         else:
             b1, b2, b3, b4 = st.columns(4)
             b1.metric("VMs to Migrate", len(bom_df))
@@ -493,17 +530,16 @@ if uploaded_file:
             bom_display = pd.concat([bom_df, totals], ignore_index=True)
             st.dataframe(bom_display, use_container_width=True, hide_index=True)
 
-        if pricing_ok:
-            st.download_button(
-                label="⬇️ Export BOM to Excel",
-                data=to_oci_excel(bom_df, prices, currency, shape),
-                file_name="migration_bom.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        else:
-            st.download_button(
-                label="⬇️ Export BOM to Excel",
-                data=to_excel(bom_df),
-                file_name="migration_bom.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+        try:
+            if pricing_ok and prices:
+                excel_data = to_oci_excel(bom_df, prices, currency, shape)
+            else:
+                excel_data = to_excel(bom_df)
+        except Exception:
+            excel_data = to_excel(bom_df)
+        st.download_button(
+            label="⬇️ Export BOM to Excel",
+            data=excel_data,
+            file_name="migration_bom.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
