@@ -464,20 +464,23 @@ if uploaded_file:
             st.subheader("RackWare Migration Cost (One-Time)")
             st.caption("RackWare on OCI Marketplace — PAYGO. Billed per OCPU per hour during migration window only.")
 
-            rw1, rw2, rw3 = st.columns(3)
-            rw_rate_usd = rw1.number_input("RackWare Rate (USD/OCPU/hr)", value=2.53, step=0.01, format="%.2f")
-            rw_days     = rw2.number_input("Migration Duration (days)", value=7, min_value=1, step=1)
-            rw_hrs_day  = rw3.number_input("Hours/day RackWare runs", value=8, min_value=1, max_value=24, step=1)
+            total_ocpus = int(bom_df['OCPUs'].sum())
+
+            rw1, rw2, rw3, rw4 = st.columns(4)
+            rw_ocpus    = rw1.number_input("OCPUs to Migrate", value=total_ocpus, min_value=1, step=1,
+                                           help=f"Default: all {total_ocpus} OCPUs. Reduce if customer migrates in phases.")
+            rw_rate_usd = rw2.number_input("RackWare Rate (USD/OCPU/hr)", value=2.53, step=0.01, format="%.2f")
+            rw_days     = rw3.number_input("Migration Duration (days)", value=7, min_value=1, step=1)
+            rw_hrs_day  = rw4.number_input("Hours/day RackWare runs", value=8, min_value=1, max_value=24, step=1)
             st.caption("💡 RackWare supports pause/resume and scheduled replication windows — it does not need to run 24/7. Typical migrations use 8 hrs/day (business hours). Adjust based on your agreed migration window with the customer.")
 
-            total_ocpus    = int(bom_df['OCPUs'].sum())
             rw_hours       = rw_days * rw_hrs_day
-            rw_cost_usd    = round(total_ocpus * rw_rate_usd * rw_hours, 2)
+            rw_cost_usd    = round(rw_ocpus * rw_rate_usd * rw_hours, 2)
 
-            st.caption(f"Formula: {total_ocpus} OCPUs × USD {rw_rate_usd}/hr × {rw_hours} hrs ({rw_days} days × {rw_hrs_day} hrs/day)")
+            st.caption(f"Formula: {rw_ocpus} OCPUs × USD {rw_rate_usd}/hr × {rw_hours} hrs ({rw_days} days × {rw_hrs_day} hrs/day)")
 
             rc1, rc2, rc3, rc4 = st.columns(4)
-            rc1.metric("Total OCPUs", total_ocpus)
+            rc1.metric("OCPUs Migrating", f"{rw_ocpus} of {total_ocpus}")
             rc2.metric("Migration Hours", rw_hours)
             rc3.metric("RackWare Cost (USD)", f"USD {rw_cost_usd:,.2f}")
             rc4.metric("Total BOM incl. RackWare (first month)", f"USD {rw_cost_usd:,.2f} + {currency} {total_monthly:,.2f}")
