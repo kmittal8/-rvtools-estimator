@@ -67,7 +67,7 @@ def to_excel(df):
         df.to_excel(writer, index=False, sheet_name='Migration BOM')
     return buf.getvalue()
 
-def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=None):
+def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=None, custom_hours=False):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from datetime import date
@@ -116,12 +116,18 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
             'ocpus':  int(df['OCPUs'].sum()),
             'mem':    float(df['Memory GB'].sum()),
             'stg':    float(df['Provisioned GB'].sum()),
+            'df':     df,
         }
 
     def group_cost(a, include_win_os=False):
-        compute = (a['ocpus'] * ocpu_rate + a['mem'] * mem_rate) * HOURS_PER_MONTH
-        storage = a['stg'] * stg_rate + (a['stg'] * BALANCED_VPU) * vpu_rate
-        wos     = (a['ocpus'] * win_os_rate * HOURS_PER_MONTH) if include_win_os else 0
+        if custom_hours and 'Compute/mo' in a['df'].columns:
+            compute = float(a['df']['Compute/mo'].sum())
+            storage = float(a['df']['Storage/mo'].sum())
+            wos     = float(a['df']['WinOS/mo'].sum()) if include_win_os else 0
+        else:
+            compute = (a['ocpus'] * ocpu_rate + a['mem'] * mem_rate) * HOURS_PER_MONTH
+            storage = a['stg'] * stg_rate + (a['stg'] * BALANCED_VPU) * vpu_rate
+            wos     = (a['ocpus'] * win_os_rate * HOURS_PER_MONTH) if include_win_os else 0
         return round(compute, 2), round(storage, 2), round(wos, 2), round(compute + storage + wos, 2)
 
     row = 1
@@ -134,7 +140,8 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
     row += 1
     ws.cell(row=row, column=1, value=f"Shape: {shape}  |  Capacity Type: On-Demand  |  Storage: Balanced (10 VPU)")
     row += 1
-    ws.cell(row=row, column=1, value="Realm: PUBLIC  |  Service Type: IAAS")
+    hrs_note = "  |  Note: Some VMs use custom Hrs/Month — compute cost reflects actual hours, storage is full month." if custom_hours else ""
+    ws.cell(row=row, column=1, value=f"Realm: PUBLIC  |  Service Type: IAAS{hrs_note}")
     row += 2
 
     # Column headers
@@ -418,25 +425,33 @@ if uploaded_file:
         bom_df = bom_df.rename(columns={os_col: 'OS', 'CPUs': 'vCPUs'})
         bom_df = bom_df.sort_values(['OS Family', 'VM']).reset_index(drop=True)
 
-        # Migrate + BYOL toggles
+        # Migrate + BYOL toggles + per-VM hours
         bom_df['Migrate'] = True
         bom_df['BYOL'] = False
+        bom_df['Hrs/Month'] = HOURS_PER_MONTH
 
         if pricing_ok:
             win_os_hr = prices.get('B88318', 0)
 
             st.caption(f"Shape: {shape} | On-Demand | Storage: Balanced (10 VPU) | Prices as of OCI API ({currency})")
             st.info("⚠️ Quote is for investment proposal only.")
-            st.caption("Uncheck **Migrate** to exclude a VM. For Windows VMs, check **BYOL** if customer brings their own license (removes OS cost).")
+            st.caption("Uncheck **Migrate** to exclude a VM. Edit **Hrs/Month** for VMs that won't run 24/7 (compute billed by hour; storage always full month). Check **BYOL** for Windows VMs with own license.")
 
             # Editable table
             edited = st.data_editor(
-                bom_df[['Migrate', 'VM', 'OS Family', 'OS', 'vCPUs', 'OCPUs', 'Memory GB', 'Provisioned TB', 'BYOL']],
+                bom_df[['Migrate', 'VM', 'OS Family', 'OS', 'vCPUs', 'OCPUs', 'Memory GB', 'Provisioned TB', 'Hrs/Month', 'BYOL']],
                 column_config={
                     "Migrate": st.column_config.CheckboxColumn(
                         "Migrate",
                         help="Uncheck to exclude this VM from the BOM",
                         default=True,
+                    ),
+                    "Hrs/Month": st.column_config.NumberColumn(
+                        "Hrs/Month",
+                        help=f"Compute hours billed per month. Default {HOURS_PER_MONTH} (24×7). Storage always charged full month.",
+                        min_value=1,
+                        max_value=744,
+                        step=1,
                     ),
                     "BYOL": st.column_config.CheckboxColumn(
                         "BYOL",
@@ -457,21 +472,23 @@ if uploaded_file:
             )
 
             # Merge selections back and filter to migrating VMs only
-            bom_df['Migrate'] = edited['Migrate'].values
-            bom_df['BYOL']    = edited['BYOL'].values
+            bom_df['Migrate']   = edited['Migrate'].values
+            bom_df['BYOL']      = edited['BYOL'].values
+            bom_df['Hrs/Month'] = edited['Hrs/Month'].values
             excluded_count    = int((~bom_df['Migrate']).sum())
             bom_df            = bom_df[bom_df['Migrate']].copy()
 
             if excluded_count > 0:
                 st.caption(f"ℹ️ {excluded_count} VM(s) excluded from BOM.")
 
-            # Recalculate with BYOL
+            # Recalculate — compute uses per-VM hours, storage always full month
             def vm_cost(row):
-                compute = (row['OCPUs'] * ocpu_hr + row['Memory GB'] * mem_hr) * HOURS_PER_MONTH
+                hrs     = int(row['Hrs/Month'])
+                compute = (row['OCPUs'] * ocpu_hr + row['Memory GB'] * mem_hr) * hrs
                 storage = row['Provisioned GB'] * stg_mo + BALANCED_VPU * row['Provisioned GB'] * vpu_mo
                 win_os  = 0
                 if row['OS Family'] == 'Windows' and not row['BYOL']:
-                    win_os = row['OCPUs'] * win_os_hr * HOURS_PER_MONTH
+                    win_os = row['OCPUs'] * win_os_hr * hrs
                 return round(compute, 2), round(storage, 2), round(win_os, 2)
 
             bom_df[['Compute/mo', 'Storage/mo', 'WinOS/mo']] = bom_df.apply(
@@ -621,7 +638,7 @@ if uploaded_file:
             if pricing_ok and prices:
                 _rw_params  = dict(ocpus=rw_ocpus, rate_usd=rw_rate_usd, days=rw_days, hrs_day=rw_hrs_day) if pricing_ok else None
                 _obj_params = dict(gb=obj_gb, rate=obj_rate) if pricing_ok else None
-                excel_data  = to_oci_excel(bom_df, prices, currency, shape, _rw_params, _obj_params)
+                excel_data  = to_oci_excel(bom_df, prices, currency, shape, _rw_params, _obj_params, custom_hours=True)
             else:
                 excel_data = to_excel(bom_df)
         except Exception:
