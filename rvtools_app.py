@@ -569,13 +569,23 @@ if uploaded_file:
 
     # ── TAB 2: Migration BOM ──────────────────────────────
     with tab2:
-        st.markdown("### 📦 Migration BOM — Real Workload")
+
+        def badge(n, color="#1a5c31"):
+            return (f'<span style="display:inline-flex;align-items:center;justify-content:center;'
+                    f'width:22px;height:22px;border-radius:50%;background:{color};color:#fff;'
+                    f'font-weight:700;font-size:0.72rem;flex-shrink:0;'
+                    f'box-shadow:0 1px 4px rgba(0,0,0,0.2);margin-right:6px;">{n}</span>')
+
         st.caption("Like-for-like migration based on provisioned values in VMware. VMware infra VMs excluded. 2 vCPU = 1 OCPU.")
 
-        # Currency + shape selector
+        # ① ② Currency + shape inline
         col_cur, col_shape, _ = st.columns([1, 1, 2])
-        currency = col_cur.selectbox("Currency", ["NZD", "USD", "AUD", "GBP", "EUR"], index=0)
-        shape = col_shape.selectbox("OCI Shape", ["VM.Standard.E4.Flex", "VM.Standard.E5.Flex"], index=0)
+        with col_cur:
+            st.markdown(f'{badge(1)} **Currency**', unsafe_allow_html=True)
+            currency = st.selectbox("Currency", ["NZD", "USD", "AUD", "GBP", "EUR"], index=0, label_visibility="collapsed")
+        with col_shape:
+            st.markdown(f'{badge(2)} **OCI Shape**', unsafe_allow_html=True)
+            shape = st.selectbox("OCI Shape", ["VM.Standard.E4.Flex", "VM.Standard.E5.Flex"], index=0, label_visibility="collapsed")
 
         # Fetch prices
         pricing_ok = False
@@ -608,30 +618,42 @@ if uploaded_file:
 
             st.markdown(f"**Shape:** `{shape}` &nbsp;|&nbsp; **Capacity:** On-Demand &nbsp;|&nbsp; **Storage:** Balanced (10 VPU) &nbsp;|&nbsp; **Prices:** Live OCI API ({currency})")
             st.info("⚠️ Quote is for investment proposal only.")
-            st.markdown("""
-- **Uncheck `Migrate`** — exclude a VM from the BOM entirely
-- **Edit `Hrs/Month`** — for VMs that won't run 24/7; compute billed by actual hours, storage always full month
-- **Check `BYOL`** — Windows VMs where customer brings their own license (removes OS cost)
-""")
+            st.html(f"""
+            <div style="display:flex;gap:24px;align-items:center;
+                        background:#fff;border:1px solid #dde2e8;border-radius:6px;
+                        padding:10px 16px;margin:4px 0 8px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#333;">
+                {badge(3)} <span><strong>Migrate</strong> — uncheck to exclude a VM</span>
+              </div>
+              <div style="color:#dde2e8;">|</div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#333;">
+                {badge(4)} <span><strong>Hrs/Month</strong> — set actual run hours (compute only; storage always full month)</span>
+              </div>
+              <div style="color:#dde2e8;">|</div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#333;">
+                {badge(5)} <span><strong>BYOL</strong> — check if customer brings own Windows license</span>
+              </div>
+            </div>
+            """)
 
             # Editable table
             edited = st.data_editor(
                 bom_df[['Migrate', 'VM', 'OS Family', 'OS', 'vCPUs', 'OCPUs', 'Memory GB', 'Provisioned TB', 'Hrs/Month', 'BYOL']],
                 column_config={
                     "Migrate": st.column_config.CheckboxColumn(
-                        "Migrate",
+                        "③ Migrate",
                         help="Uncheck to exclude this VM from the BOM",
                         default=True,
                     ),
                     "Hrs/Month": st.column_config.NumberColumn(
-                        "Hrs/Month",
+                        "④ Hrs/Month",
                         help=f"Compute hours billed per month. Default {HOURS_PER_MONTH} (24×7). Storage always charged full month.",
                         min_value=1,
                         max_value=744,
                         step=1,
                     ),
                     "BYOL": st.column_config.CheckboxColumn(
-                        "BYOL",
+                        "⑤ BYOL",
                         help="Check if customer brings their own Windows license",
                         default=False,
                     ),
@@ -673,17 +695,9 @@ if uploaded_file:
             )
             bom_df['Total/mo'] = round(bom_df['Compute/mo'] + bom_df['Storage/mo'] + bom_df['WinOS/mo'], 2)
 
-            # 200 GB Block Volume free tier (entire tenancy, applied once)
-            free_tier_200 = st.checkbox(
-                "Apply 200 GB Block Volume Free Tier Discount",
-                value=False,
-                help="OCI Block Volume free tier: 200 GB total per tenancy. Deducted from total storage cost once."
-            )
-            free_tier_discount = round(200 * stg_mo + 200 * BALANCED_VPU * vpu_mo, 2) if free_tier_200 else 0.0
-
+            # 200 GB free tier always applied silently
+            free_tier_discount = round(200 * stg_mo + 200 * BALANCED_VPU * vpu_mo, 2)
             total_monthly = round(bom_df['Total/mo'].sum() - free_tier_discount, 2)
-            if free_tier_200:
-                st.caption(f"Free tier applied: −{currency} {free_tier_discount:,.2f}/month (200 GB storage + VPU deducted)")
 
             st.divider()
 
@@ -759,8 +773,7 @@ if uploaded_file:
 
             st.divider()
 
-            # --- RackWare Migration Cost ---
-            st.markdown("### 🚚 RackWare Migration Cost (One-Time)")
+            st.html(f'<div style="display:flex;align-items:center;gap:6px;margin:20px 0 4px;">{badge(6)}<span style="font-size:0.9rem;font-weight:700;color:#1c1c1e;">🚚 RackWare Migration Cost (One-Time)</span></div>')
             st.caption("RackWare on OCI Marketplace — PAYGO. Billed per OCPU per hour during migration window only.")
 
             total_ocpus = int(bom_df['OCPUs'].sum())
@@ -788,8 +801,7 @@ if uploaded_file:
 
             st.divider()
 
-            # --- Object Storage (Backups) Calculator ---
-            st.markdown("### 🗄️ Object Storage — Backups (Optional)")
+            st.html(f'<div style="display:flex;align-items:center;gap:6px;margin:20px 0 4px;">{badge(7)}<span style="font-size:0.9rem;font-weight:700;color:#1c1c1e;">🗄️ Object Storage — Backups (Optional)</span></div>')
             st.caption("OCI Standard Object Storage for VM backups / snapshots post-migration. Customer estimate — adjust to actual backup retention needs.")
 
             obj_rate = prices.get(SKU_OBJ_STG, 0.0436101)
@@ -841,6 +853,7 @@ if uploaded_file:
                 excel_data = to_excel(bom_df)
         except Exception:
             excel_data = to_excel(bom_df)
+        st.html(f'<div style="display:flex;align-items:center;gap:6px;margin:20px 0 6px;">{badge(8, "#e8a800")}<span style="font-size:0.9rem;font-weight:700;color:#1c1c1e;">Download BOM — OCI Investment Proposal format</span></div>')
         st.download_button(
             label="⬇️ Export BOM to Excel",
             data=excel_data,
