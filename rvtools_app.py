@@ -299,7 +299,9 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
                 lambda r: r['OCPUs'] * win_os_rate * r['Hrs/Month']
                           if (include_win_os and r['OS Family'] == 'Windows' and not r['BYOL']) else 0,
                 axis=1)).sum())
-            hrs_label = "×variable hrs"
+            total_ocpu_hrs = int((a['df']['OCPUs'] * a['df']['Hrs/Month']).sum())
+            wavg_hrs = round(total_ocpu_hrs / a['ocpus']) if a['ocpus'] else 0
+            hrs_label = f"×variable hrs (OCPU-weighted avg: {wavg_hrs} hrs; total {total_ocpu_hrs:,} OCPU-hrs)"
         else:
             ocpu_cost = a['ocpus'] * ocpu_rate * HOURS_PER_MONTH
             mem_cost  = a['mem'] * mem_rate * HOURS_PER_MONTH
