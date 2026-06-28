@@ -291,16 +291,28 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
         ws.cell(row=row, column=7).fill = fill
         row += 1
 
-        # OCPU
-        ocpu_cost = a['ocpus'] * ocpu_rate * HOURS_PER_MONTH
-        for col, val in enumerate([SKU_E4_OCPU, f"Compute - E4 - OCPU (OCPU Per Hour) ×{HOURS_PER_MONTH} hrs",
+        # OCPU — use actual per-VM hours when custom_hours enabled
+        if custom_hours and 'Hrs/Month' in a['df'].columns:
+            ocpu_cost = float((a['df']['OCPUs'] * ocpu_rate * a['df']['Hrs/Month']).sum())
+            mem_cost  = float((a['df']['Memory GB'] * mem_rate * a['df']['Hrs/Month']).sum())
+            wos_cost  = float((a['df'].apply(
+                lambda r: r['OCPUs'] * win_os_rate * r['Hrs/Month']
+                          if (include_win_os and r['OS Family'] == 'Windows' and not r['BYOL']) else 0,
+                axis=1)).sum())
+            hrs_label = "×variable hrs"
+        else:
+            ocpu_cost = a['ocpus'] * ocpu_rate * HOURS_PER_MONTH
+            mem_cost  = a['mem'] * mem_rate * HOURS_PER_MONTH
+            wos_cost  = wos
+            hrs_label = f"×{HOURS_PER_MONTH} hrs"
+
+        for col, val in enumerate([SKU_E4_OCPU, f"Compute - E4 - OCPU (OCPU Per Hour) {hrs_label}",
                                     '', a['ocpus'], '', ocpu_rate, round(ocpu_cost, 2), "On-Demand"], 1):
             ws.cell(row=row, column=col, value=val).alignment = wrap
         row += 1
 
         # Memory
-        mem_cost = a['mem'] * mem_rate * HOURS_PER_MONTH
-        for col, val in enumerate([SKU_E4_MEM, f"Compute - E4 - Memory (GB Per Hour) ×{HOURS_PER_MONTH} hrs",
+        for col, val in enumerate([SKU_E4_MEM, f"Compute - E4 - Memory (GB Per Hour) {hrs_label}",
                                     '', '', round(a['mem'], 1), mem_rate, round(mem_cost, 2), "On-Demand"], 1):
             ws.cell(row=row, column=col, value=val)
         row += 1
@@ -320,9 +332,9 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
         row += 1
 
         # Windows OS
-        if include_win_os and wos > 0:
-            for col, val in enumerate(['B88318', f"Compute - Windows OS (OCPU Per Hour) ×{HOURS_PER_MONTH} hrs",
-                                        '', a['ocpus'], '', win_os_rate, round(wos, 2), "License Included"], 1):
+        if include_win_os and wos_cost > 0:
+            for col, val in enumerate(['B88318', f"Compute - Windows OS (OCPU Per Hour) {hrs_label}",
+                                        '', a['ocpus'], '', win_os_rate, round(wos_cost, 2), "License Included"], 1):
                 ws.cell(row=row, column=col, value=val)
             row += 1
 
