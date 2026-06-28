@@ -369,7 +369,8 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
         row += 1
 
         rw_ocpus   = rw_params['ocpus']
-        rw_rate    = rw_params['rate_usd']
+        rw_rate    = rw_params['rate']
+        rw_cur     = rw_params['cur']
         rw_days    = rw_params['days']
         rw_hrs     = rw_params['hrs_day']
         rw_hours   = rw_days * rw_hrs
@@ -377,7 +378,7 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
 
         params = [
             ("OCPUs to Migrate", rw_ocpus),
-            ("RackWare Rate (USD/OCPU/hr)", f"USD {rw_rate}"),
+            (f"RackWare Rate ({rw_cur}/OCPU/hr)", f"{rw_cur} {rw_rate}"),
             ("Migration Duration (days)", rw_days),
             ("Hours/day", rw_hrs),
             ("Total Migration Hours", rw_hours),
@@ -387,7 +388,7 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
             ws.cell(row=row, column=3, value=val)
             row += 1
 
-        for col, val in enumerate(['', 'RackWare Total (One-Time, USD)', '', '', '', '', f"USD {rw_cost:,.2f}", 'PAYGO — OCI Marketplace'], 1):
+        for col, val in enumerate(['', f'RackWare Total (One-Time, {rw_cur})', '', '', '', '', f"{rw_cur} {rw_cost:,.2f}", 'PAYGO — OCI Marketplace'], 1):
             c = ws.cell(row=row, column=col, value=val)
             c.font = bold
         row += 2
@@ -786,30 +787,41 @@ if uploaded_file:
             st.divider()
 
             st.html(f'<div style="display:flex;align-items:center;gap:6px;margin:20px 0 4px;">{badge(6)}<span style="font-size:0.9rem;font-weight:700;color:#1c1c1e;">🚚 RackWare Migration Cost (One-Time)</span></div>')
-            st.caption("RackWare on OCI Marketplace — PAYGO. Billed per OCPU per hour during migration window only.")
+            st.html('RackWare on OCI Marketplace — PAYGO. Billed per OCPU per hour during migration window only. '
+                    '<a href="https://marketplace.oracle.com/listings/migration-for-servers-vms/ocid1.mktpublisting.oc1.iad.amaaaaaao2ztryiax4zhb4csbzyv5dtoj3chyhxlw565qgx56pg6uokl7pea" '
+                    'target="_blank" style="color:#1a5c31;font-weight:600;">For more info, click here ↗</a>')
+
+            RW_RATES = {
+                "USD": 2.53, "AUD": 3.99, "NZD": 4.3516, "EUR": 2.3529,
+                "GBP": 1.8962, "CAD": 3.2462, "SGD": 3.4203, "CHF": 2.3215,
+                "AED": 9.28, "SAR": 9.4875, "MYR": 12.0934, "ILS": 10.3224,
+                "KRW": 3421.319, "BRL": 14.99, "MXN": 45.4641, "COP": 1073.44,
+                "CLP": 2287.9, "DKK": 17.91, "PLN": 10.8, "CZK": 59.3,
+                "HUF": 917.4286, "RON": 11.5874, "BGN": 4.7617, "BAM": 4.7612,
+            }
 
             total_ocpus = int(bom_df['OCPUs'].sum())
 
             rw1, rw2, rw3, rw4 = st.columns(4)
-            rw_ocpus    = rw1.number_input("OCPUs to Migrate", value=2, min_value=1, step=1,
-                                           help=f"Total workload OCPUs: {total_ocpus}. Default 2 — adjust to actual migration batch size.")
-            rw_rate_usd = rw2.number_input("RackWare Rate (USD/OCPU/hr)", value=2.53, step=0.01, format="%.2f")
-            rw_days     = rw3.number_input("Migration Duration (days)", value=7, min_value=1, step=1)
-            rw_hrs_day  = rw4.number_input("Hours/day RackWare runs", value=8, min_value=1, max_value=24, step=1)
+            rw_ocpus   = rw1.number_input("OCPUs to Migrate", value=2, min_value=1, step=1,
+                                          help=f"Total workload OCPUs: {total_ocpus}. Default 2 — adjust to actual migration batch size.")
+            rw_cur     = rw2.selectbox("Rate Currency", list(RW_RATES.keys()), index=list(RW_RATES.keys()).index("USD"))
+            rw_default = RW_RATES[rw_cur]
+            rw_rate    = rw3.number_input(f"RackWare Rate ({rw_cur}/OCPU/hr)", value=rw_default, step=0.01, format="%.4f")
+            rw_days    = rw4.number_input("Migration Duration (days)", value=7, min_value=1, step=1)
+            rw_hrs_day = st.number_input("Hours/day RackWare runs", value=8, min_value=1, max_value=24, step=1)
             st.caption("💡 RackWare supports pause/resume and scheduled replication windows — it does not need to run 24/7. Typical migrations use 8 hrs/day (business hours). Adjust based on your agreed migration window with the customer.")
 
-            rw_hours       = rw_days * rw_hrs_day
-            rw_cost_usd    = round(rw_ocpus * rw_rate_usd * rw_hours, 2)
+            rw_hours    = rw_days * rw_hrs_day
+            rw_cost     = round(rw_ocpus * rw_rate * rw_hours, 2)
 
-            st.caption(f"Formula: {rw_ocpus} OCPUs × USD {rw_rate_usd}/hr × {rw_hours} hrs ({rw_days} days × {rw_hrs_day} hrs/day)")
+            st.caption(f"Formula: {rw_ocpus} OCPUs × {rw_cur} {rw_rate}/hr × {rw_hours} hrs ({rw_days} days × {rw_hrs_day} hrs/day)")
 
             rc1, rc2, rc3, rc4 = st.columns(4)
             rc1.metric("OCPUs Migrating", f"{rw_ocpus} of {total_ocpus}")
             rc2.metric("Migration Hours", rw_hours)
-            rc3.metric("RackWare Cost (USD)", f"USD {rw_cost_usd:,.2f}")
-            rc4.metric("Total BOM incl. RackWare (first month)", f"USD {rw_cost_usd:,.2f} + {currency} {total_monthly:,.2f}")
-
-            st.info("💡 RackWare is priced in USD on OCI Marketplace. Convert to local currency using current exchange rate.")
+            rc3.metric(f"RackWare Cost ({rw_cur})", f"{rw_cur} {rw_cost:,.2f}")
+            rc4.metric("Total BOM incl. RackWare (first month)", f"{rw_cur} {rw_cost:,.2f} + {currency} {total_monthly:,.2f}")
 
             st.divider()
 
@@ -858,7 +870,7 @@ if uploaded_file:
 
         try:
             if pricing_ok and prices:
-                _rw_params  = dict(ocpus=rw_ocpus, rate_usd=rw_rate_usd, days=rw_days, hrs_day=rw_hrs_day) if pricing_ok else None
+                _rw_params  = dict(ocpus=rw_ocpus, rate=rw_rate, cur=rw_cur, days=rw_days, hrs_day=rw_hrs_day) if pricing_ok else None
                 _obj_params = dict(gb=obj_gb, rate=obj_rate) if pricing_ok else None
                 excel_data  = to_oci_excel(bom_df, prices, currency, shape, _rw_params, _obj_params, custom_hours=True, free_tier_discount=free_tier_discount)
             else:
