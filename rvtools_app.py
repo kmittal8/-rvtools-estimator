@@ -137,7 +137,7 @@ uploaded_file = st.file_uploader("Upload RVTools Excel export (.xlsx)", type=["x
 st.markdown("</div>", unsafe_allow_html=True)
 
 VMWARE_NAME_PREFIXES = ('vcls-', 'z-vrah-', 'z-vra-')
-HOURS_PER_MONTH = 744
+HOURS_PER_MONTH = 730
 BALANCED_VPU = 10  # OCI Balanced performance tier = 10 VPU
 
 # OCI SKUs
@@ -664,7 +664,7 @@ if uploaded_file:
                         "④ Hrs/Month",
                         help=f"Compute hours billed per month. Default {HOURS_PER_MONTH} (24×7). Storage always charged full month.",
                         min_value=1,
-                        max_value=744,
+                        max_value=730,
                         step=1,
                     ),
                     "BYOL": st.column_config.CheckboxColumn(
