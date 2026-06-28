@@ -803,15 +803,15 @@ if uploaded_file:
 
             total_ocpus = int(bom_df['OCPUs'].sum())
 
-            rw1, rw2, rw3, rw4 = st.columns(4)
+            rw1, rw2, rw3, rw4, rw5 = st.columns(5)
             rw_ocpus   = rw1.number_input("OCPUs to Migrate", value=2, min_value=1, step=1,
                                           help=f"Total workload OCPUs: {total_ocpus}. Default 2 — adjust to actual migration batch size.")
             rw_cur     = rw2.selectbox("Rate Currency", list(RW_RATES.keys()), index=list(RW_RATES.keys()).index("USD"))
             rw_default = RW_RATES[rw_cur]
-            rw_rate    = rw3.number_input(f"RackWare Rate ({rw_cur}/OCPU/hr)", value=rw_default, step=0.01, format="%.4f")
-            rw_days    = rw4.number_input("Migration Duration (days)", value=7, min_value=1, step=1)
-            rw_hrs_day = st.number_input("Hours/day RackWare runs", value=8, min_value=1, max_value=24, step=1)
-            st.caption("💡 RackWare supports pause/resume and scheduled replication windows — it does not need to run 24/7. Typical migrations use 8 hrs/day (business hours). Adjust based on your agreed migration window with the customer.")
+            rw_rate    = rw3.number_input(f"Rate ({rw_cur}/OCPU/hr)", value=rw_default, step=0.01, format="%.4f")
+            rw_days    = rw4.number_input("Duration (days)", value=7, min_value=1, step=1)
+            rw_hrs_day = rw5.number_input("Hrs/day", value=8, min_value=1, max_value=24, step=1,
+                                          help="RackWare supports pause/resume — typical migrations use 8 hrs/day (business hours).")
 
             rw_hours    = rw_days * rw_hrs_day
             rw_cost     = round(rw_ocpus * rw_rate * rw_hours, 2)
