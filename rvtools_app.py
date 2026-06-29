@@ -146,6 +146,7 @@ SKU_E4_MEM    = 'B93114'
 SKU_BLOCK_STG = 'B91961'
 SKU_BLOCK_VPU = 'B91962'
 SKU_OBJ_STG   = 'B96484'
+SKU_FSDR      = 'B95485'
 
 @st.cache_data(ttl=3600)
 def fetch_oci_prices(currency):
@@ -187,7 +188,7 @@ def to_excel(df):
         df.to_excel(writer, index=False, sheet_name='Migration BOM')
     return buf.getvalue()
 
-def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=None, custom_hours=False, free_tier_discount=0.0):
+def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=None, custom_hours=False, free_tier_discount=0.0, fsdr_params=None):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from datetime import date
@@ -418,6 +419,33 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
         row += 1
 
         for col, val in enumerate([SKU_OBJ_STG, 'Object Storage - Standard (GB/month)', '', '', billable, obj_rate, obj_cost, 'First 20 GB free'], 1):
+            c = ws.cell(row=row, column=col, value=val)
+            c.font = bold
+        row += 2
+
+    # --- FSDR section ---
+    if fsdr_params:
+        ws.cell(row=row, column=1, value="OCI Full Stack DR — Protection Cost (Monthly)").font = bold
+        ws.cell(row=row, column=1).fill = light_blue
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
+        row += 1
+
+        fsdr_ocpus = fsdr_params['ocpus']
+        fsdr_hrs   = fsdr_params['hrs']
+        fsdr_rate  = fsdr_params['rate']
+        fsdr_cost  = fsdr_params['cost']
+
+        params = [
+            ("Protected OCPUs (Primary Region)", fsdr_ocpus),
+            ("Hours/Month", fsdr_hrs),
+            (f"FSDR Rate ({currency}/OCPU/hr)", fsdr_rate),
+        ]
+        for label, val in params:
+            ws.cell(row=row, column=2, value=label)
+            ws.cell(row=row, column=3, value=val)
+            row += 1
+
+        for col, val in enumerate([SKU_FSDR, 'Full Stack DR — OCPU Protection (Monthly)', '', fsdr_ocpus, '', fsdr_rate, fsdr_cost, 'Moving compute — primary region only'], 1):
             c = ws.cell(row=row, column=col, value=val)
             c.font = bold
         row += 2
@@ -851,6 +879,23 @@ if uploaded_file:
             if obj_cost_mo > 0:
                 st.info(f"💡 Including object storage backups: **{currency} {total_with_obj:,.2f}/month** (compute + block storage + backups)")
 
+            st.divider()
+
+            st.html(f'<div style="display:flex;align-items:center;gap:6px;margin:20px 0 4px;">{badge(8)}<span style="font-size:0.9rem;font-weight:700;color:#1c1c1e;">🛡️ OCI Full Stack DR — Protection Cost (Optional)</span></div>')
+            st.caption("FSDR charges per OCPU of protected workload in the primary region only (moving compute). Acts as a DR orchestration fee on top of normal compute costs.")
+
+            fsdr_rate = prices.get(SKU_FSDR, 0.02189056)
+            fsdr_total_ocpus = int(bom_df['OCPUs'].sum())
+            fd1, fd2, fd3 = st.columns(3)
+            fsdr_ocpus = fd1.number_input("Protected OCPUs (Primary)", value=fsdr_total_ocpus, min_value=1, step=1,
+                                          help=f"Total migrating OCPUs: {fsdr_total_ocpus}. Only include OCPUs registered in the DR protection group.")
+            fsdr_hrs   = fd2.number_input("Hours/Month", value=HOURS_PER_MONTH, min_value=1, max_value=730, step=1,
+                                          key="fsdr_hrs")
+            fsdr_cost  = round(fsdr_ocpus * fsdr_hrs * fsdr_rate, 2)
+            fd3.metric(f"FSDR Monthly Cost ({currency})", f"{currency} {fsdr_cost:,.2f}")
+            st.caption(f"Formula: {fsdr_ocpus} OCPUs × {fsdr_hrs} hrs × {currency} {fsdr_rate}/OCPU/hr = {currency} {fsdr_cost:,.2f}/month  |  SKU: {SKU_FSDR}")
+            st.caption("💡 Moving compute only — no standby region charge. VMs exist in DR region only after failover.")
+
         else:
             b1, b2, b3, b4 = st.columns(4)
             b1.metric("VMs to Migrate", len(bom_df))
@@ -871,9 +916,10 @@ if uploaded_file:
 
         try:
             if pricing_ok and prices:
-                _rw_params  = dict(ocpus=rw_ocpus, rate=rw_rate, cur=rw_cur, days=rw_days, hrs_day=rw_hrs_day) if pricing_ok else None
-                _obj_params = dict(gb=obj_gb, rate=obj_rate) if pricing_ok else None
-                excel_data  = to_oci_excel(bom_df, prices, currency, shape, _rw_params, _obj_params, custom_hours=True, free_tier_discount=free_tier_discount)
+                _rw_params   = dict(ocpus=rw_ocpus, rate=rw_rate, cur=rw_cur, days=rw_days, hrs_day=rw_hrs_day) if pricing_ok else None
+                _obj_params  = dict(gb=obj_gb, rate=obj_rate) if pricing_ok else None
+                _fsdr_params = dict(ocpus=fsdr_ocpus, hrs=fsdr_hrs, rate=fsdr_rate, cost=fsdr_cost) if pricing_ok else None
+                excel_data   = to_oci_excel(bom_df, prices, currency, shape, _rw_params, _obj_params, custom_hours=True, free_tier_discount=free_tier_discount, fsdr_params=_fsdr_params)
             else:
                 excel_data = to_excel(bom_df)
         except Exception:
