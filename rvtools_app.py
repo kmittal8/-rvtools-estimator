@@ -941,7 +941,41 @@ if uploaded_file:
                 excel_data = to_excel(bom_df)
         except Exception:
             excel_data = to_excel(bom_df)
-        st.html(f'<div style="display:flex;align-items:center;gap:6px;margin:20px 0 6px;">{badge(8, "#e8a800")}<span style="font-size:0.9rem;font-weight:700;color:#1c1c1e;">Download BOM — OCI Investment Proposal format</span></div>')
+        # --- Final Total Summary ---
+        if pricing_ok:
+            monthly_recurring = round(total_monthly + obj_cost_mo + fsdr_cost, 2)
+            st.divider()
+            st.html(f'''
+<div style="background:#f0f7f2;border:2px solid #1a5c31;border-radius:10px;padding:20px 28px;margin:16px 0;">
+  <div style="font-size:1rem;font-weight:700;color:#1a5c31;margin-bottom:14px;">📊 Total Cost Summary</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+    <div style="background:#fff;border-radius:8px;padding:12px 16px;border:1px solid #d0e8d8;">
+      <div style="font-size:0.72rem;color:#666;text-transform:uppercase;letter-spacing:0.04em;">Compute + Storage (Monthly)</div>
+      <div style="font-size:1.2rem;font-weight:700;color:#1c1c1e;margin-top:4px;">{currency} {total_monthly:,.2f}</div>
+    </div>
+    <div style="background:#fff;border-radius:8px;padding:12px 16px;border:1px solid #d0e8d8;">
+      <div style="font-size:0.72rem;color:#666;text-transform:uppercase;letter-spacing:0.04em;">Object Storage Backups (Monthly)</div>
+      <div style="font-size:1.2rem;font-weight:700;color:#1c1c1e;margin-top:4px;">{currency} {obj_cost_mo:,.2f}</div>
+    </div>
+    <div style="background:#fff;border-radius:8px;padding:12px 16px;border:1px solid #d0e8d8;">
+      <div style="font-size:0.72rem;color:#666;text-transform:uppercase;letter-spacing:0.04em;">FSDR Protection (Monthly)</div>
+      <div style="font-size:1.2rem;font-weight:700;color:#1c1c1e;margin-top:4px;">{currency} {fsdr_cost:,.2f}</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+    <div style="background:#1a5c31;border-radius:8px;padding:14px 16px;">
+      <div style="font-size:0.72rem;color:#a8d5b5;text-transform:uppercase;letter-spacing:0.04em;">Total Monthly Recurring</div>
+      <div style="font-size:1.5rem;font-weight:800;color:#fff;margin-top:4px;">{currency} {monthly_recurring:,.2f}</div>
+    </div>
+    <div style="background:#a05000;border-radius:8px;padding:14px 16px;">
+      <div style="font-size:0.72rem;color:#f5d5b0;text-transform:uppercase;letter-spacing:0.04em;">RackWare Migration (One-Time)</div>
+      <div style="font-size:1.5rem;font-weight:800;color:#fff;margin-top:4px;">{rw_cur} {rw_cost:,.2f}</div>
+    </div>
+  </div>
+</div>
+''')
+
+        st.html(f'<div style="display:flex;align-items:center;gap:6px;margin:20px 0 6px;">{badge(9, "#e8a800")}<span style="font-size:0.9rem;font-weight:700;color:#1c1c1e;">Download BOM — OCI Investment Proposal format</span></div>')
         st.download_button(
             label="⬇️ Export BOM to Excel",
             data=excel_data,
