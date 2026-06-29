@@ -370,29 +370,29 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
         ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
         row += 1
 
-        rw_ocpus   = rw_params['ocpus']
-        rw_rate    = rw_params['rate']
-        rw_cur     = rw_params['cur']
-        rw_days    = rw_params['days']
-        rw_hrs     = rw_params['hrs_day']
-        rw_hours   = rw_days * rw_hrs
-        rw_cost    = round(rw_ocpus * rw_rate * rw_hours, 2)
+        rw_ocpus = rw_params['ocpus']
+        rw_rate  = rw_params['rate']
+        rw_cur   = rw_params['cur']
+        rw_days  = rw_params['days']
+        rw_hrs   = rw_params['hrs_day']
 
-        params = [
-            ("OCPUs to Migrate", rw_ocpus),
-            (f"RackWare Rate ({rw_cur}/OCPU/hr)", f"{rw_cur} {rw_rate}"),
-            ("Migration Duration (days)", rw_days),
-            ("Hours/day", rw_hrs),
-            ("Total Migration Hours", rw_hours),
-        ]
-        for label, val in params:
-            ws.cell(row=row, column=2, value=label)
-            ws.cell(row=row, column=3, value=val)
-            row += 1
+        ws.cell(row=row, column=2, value="OCPUs to Migrate")
+        ws.cell(row=row, column=3, value=rw_ocpus); rw_ocpus_row = row; row += 1
+        ws.cell(row=row, column=2, value=f"RackWare Rate ({rw_cur}/OCPU/hr)")
+        ws.cell(row=row, column=3, value=rw_rate);  rw_rate_row  = row; row += 1
+        ws.cell(row=row, column=2, value="Migration Duration (days)")
+        ws.cell(row=row, column=3, value=rw_days);  rw_days_row  = row; row += 1
+        ws.cell(row=row, column=2, value="Hours/day")
+        ws.cell(row=row, column=3, value=rw_hrs);   rw_hrs_row   = row; row += 1
+        ws.cell(row=row, column=2, value="Total Migration Hours")
+        ws.cell(row=row, column=3, value=f"=C{rw_days_row}*C{rw_hrs_row}"); rw_total_hrs_row = row; row += 1
 
-        for col, val in enumerate(['', f'RackWare Total (One-Time, {rw_cur})', '', '', '', '', f"{rw_cur} {rw_cost:,.2f}", 'PAYGO — OCI Marketplace'], 1):
-            c = ws.cell(row=row, column=col, value=val)
-            c.font = bold
+        total_cell = ws.cell(row=row, column=7,
+            value=f"=C{rw_ocpus_row}*C{rw_rate_row}*C{rw_total_hrs_row}")
+        total_cell.font = bold
+        ws.cell(row=row, column=2, value=f"RackWare Total (One-Time, {rw_cur})").font = bold
+        ws.cell(row=row, column=8, value="PAYGO — OCI Marketplace")
+        ws.cell(row=row, column=1, value="")
         row += 2
 
     # --- Object Storage Backups section ---
@@ -402,25 +402,24 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
         ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=8)
         row += 1
 
-        obj_gb      = obj_params['gb']
-        obj_rate    = obj_params['rate']
-        free_gb     = 20
-        billable    = max(0, obj_gb - free_gb)
-        obj_cost    = round(billable * obj_rate, 2)
+        obj_gb   = obj_params['gb']
+        obj_rate = obj_params['rate']
+        free_gb  = 20
 
-        ws.cell(row=row, column=2, value="Estimated Backup Storage (GB)")
-        ws.cell(row=row, column=3, value=obj_gb)
-        row += 1
+        ws.cell(row=row, column=2, value="Estimated Backup Storage (GB) — edit to recalculate")
+        ws.cell(row=row, column=3, value=obj_gb);  obj_gb_row   = row; row += 1
         ws.cell(row=row, column=2, value="Free Tier Deduction (GB)")
-        ws.cell(row=row, column=3, value=free_gb)
-        row += 1
+        ws.cell(row=row, column=3, value=free_gb); obj_free_row = row; row += 1
         ws.cell(row=row, column=2, value="Billable Storage (GB)")
-        ws.cell(row=row, column=3, value=billable)
-        row += 1
+        ws.cell(row=row, column=3, value=f"=MAX(0,C{obj_gb_row}-C{obj_free_row})"); obj_bill_row = row; row += 1
 
-        for col, val in enumerate([SKU_OBJ_STG, 'Object Storage - Standard (GB/month)', '', '', billable, obj_rate, obj_cost, 'First 20 GB free'], 1):
-            c = ws.cell(row=row, column=col, value=val)
-            c.font = bold
+        sku_row = row
+        ws.cell(row=row, column=1, value=SKU_OBJ_STG).font = bold
+        ws.cell(row=row, column=2, value="Object Storage - Standard (GB/month)").font = bold
+        ws.cell(row=row, column=5, value=f"=C{obj_bill_row}")
+        ws.cell(row=row, column=6, value=obj_rate)
+        ws.cell(row=row, column=7, value=f"=E{sku_row}*F{sku_row}").font = bold
+        ws.cell(row=row, column=8, value="First 20 GB free")
         row += 2
 
     # --- FSDR section ---
@@ -433,21 +432,21 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
         fsdr_ocpus = fsdr_params['ocpus']
         fsdr_hrs   = fsdr_params['hrs']
         fsdr_rate  = fsdr_params['rate']
-        fsdr_cost  = fsdr_params['cost']
 
-        params = [
-            ("Protected OCPUs (Primary Region)", fsdr_ocpus),
-            ("Hours/Month", fsdr_hrs),
-            (f"FSDR Rate ({currency}/OCPU/hr)", fsdr_rate),
-        ]
-        for label, val in params:
-            ws.cell(row=row, column=2, value=label)
-            ws.cell(row=row, column=3, value=val)
-            row += 1
+        ws.cell(row=row, column=2, value="Protected OCPUs (Primary Region) — edit to recalculate")
+        ws.cell(row=row, column=3, value=fsdr_ocpus); fd_ocpus_row = row; row += 1
+        ws.cell(row=row, column=2, value="Hours/Month")
+        ws.cell(row=row, column=3, value=fsdr_hrs);   fd_hrs_row   = row; row += 1
+        ws.cell(row=row, column=2, value=f"FSDR Rate ({currency}/OCPU/hr)")
+        ws.cell(row=row, column=3, value=fsdr_rate);  fd_rate_row  = row; row += 1
 
-        for col, val in enumerate([SKU_FSDR, 'Full Stack DR — OCPU Protection (Monthly)', '', fsdr_ocpus, '', fsdr_rate, fsdr_cost, 'Moving compute — primary region only'], 1):
-            c = ws.cell(row=row, column=col, value=val)
-            c.font = bold
+        fd_sku_row = row
+        ws.cell(row=row, column=1, value=SKU_FSDR).font = bold
+        ws.cell(row=row, column=2, value="Full Stack DR — OCPU Protection (Monthly)").font = bold
+        ws.cell(row=row, column=4, value=f"=C{fd_ocpus_row}")
+        ws.cell(row=row, column=6, value=f"=C{fd_rate_row}")
+        ws.cell(row=row, column=7, value=f"=C{fd_ocpus_row}*C{fd_hrs_row}*C{fd_rate_row}").font = bold
+        ws.cell(row=row, column=8, value="Moving compute — primary region only")
         row += 2
 
     # Quote note
