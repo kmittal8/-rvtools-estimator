@@ -141,10 +141,24 @@ HOURS_PER_MONTH = 730
 BALANCED_VPU = 10  # OCI Balanced performance tier = 10 VPU
 
 # OCI SKUs
+SKU_E3_OCPU   = 'B92306'
+SKU_E3_MEM    = 'B92307'
 SKU_E4_OCPU   = 'B93113'
 SKU_E4_MEM    = 'B93114'
 SKU_E5_OCPU   = 'B97384'
 SKU_E5_MEM    = 'B97385'
+SKU_E6_OCPU   = 'B111129'
+SKU_E6_MEM    = 'B111130'
+SKU_E6AX_OCPU = 'B112530'
+SKU_E6AX_MEM  = 'B112531'
+
+SHAPE_SKUS = {
+    "VM.Standard.E3.Flex": (SKU_E3_OCPU,   SKU_E3_MEM,   "E3"),
+    "VM.Standard.E4.Flex": (SKU_E4_OCPU,   SKU_E4_MEM,   "E4"),
+    "VM.Standard.E5.Flex": (SKU_E5_OCPU,   SKU_E5_MEM,   "E5"),
+    "VM.Standard.E6.Flex": (SKU_E6_OCPU,   SKU_E6_MEM,   "E6"),
+    "VM.Standard.E6.Ax.Flex": (SKU_E6AX_OCPU, SKU_E6AX_MEM, "E6.Ax"),
+}
 SKU_BLOCK_STG = 'B91961'
 SKU_BLOCK_VPU = 'B91962'
 SKU_OBJ_STG   = 'B96484'
@@ -222,8 +236,7 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
         top=Side(style='thin'),  bottom=Side(style='thin')
     )
 
-    sku_ocpu    = SKU_E5_OCPU if 'E5' in shape else SKU_E4_OCPU
-    sku_mem     = SKU_E5_MEM  if 'E5' in shape else SKU_E4_MEM
+    sku_ocpu, sku_mem, shape_gen = SHAPE_SKUS.get(shape, (SKU_E4_OCPU, SKU_E4_MEM, "E4"))
     ocpu_rate   = prices[sku_ocpu]
     mem_rate    = prices[sku_mem]
     stg_rate    = prices[SKU_BLOCK_STG]
@@ -312,7 +325,6 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
             wos_cost  = wos
             hrs_label = f"×{HOURS_PER_MONTH} hrs"
 
-        shape_gen = "E5" if 'E5' in shape else "E4"
         for col, val in enumerate([sku_ocpu, f"Compute - {shape_gen} - OCPU (OCPU Per Hour) {hrs_label}",
                                     '', a['ocpus'], '', ocpu_rate, round(ocpu_cost, 2), "On-Demand"], 1):
             ws.cell(row=row, column=col, value=val).alignment = wrap
@@ -631,7 +643,7 @@ if uploaded_file:
             currency = st.selectbox("Currency", ["NZD", "USD", "AUD", "GBP", "EUR"], index=0, label_visibility="collapsed")
         with col_shape:
             st.markdown(f'{badge(2)} **OCI Shape**', unsafe_allow_html=True)
-            shape = st.selectbox("OCI Shape", ["VM.Standard.E4.Flex", "VM.Standard.E5.Flex"], index=0, label_visibility="collapsed")
+            shape = st.selectbox("OCI Shape", list(SHAPE_SKUS.keys()), index=1, label_visibility="collapsed")
 
         # Fetch prices
         pricing_ok = False
@@ -639,8 +651,7 @@ if uploaded_file:
         with st.spinner("Fetching OCI pricing..."):
             try:
                 prices = fetch_oci_prices(currency)
-                sku_ocpu = SKU_E5_OCPU if shape == "VM.Standard.E5.Flex" else SKU_E4_OCPU
-                sku_mem  = SKU_E5_MEM  if shape == "VM.Standard.E5.Flex" else SKU_E4_MEM
+                sku_ocpu, sku_mem, _ = SHAPE_SKUS[shape]
                 ocpu_hr  = prices[sku_ocpu]
                 mem_hr   = prices[sku_mem]
                 stg_mo   = prices[SKU_BLOCK_STG]
