@@ -143,6 +143,8 @@ BALANCED_VPU = 10  # OCI Balanced performance tier = 10 VPU
 # OCI SKUs
 SKU_E4_OCPU   = 'B93113'
 SKU_E4_MEM    = 'B93114'
+SKU_E5_OCPU   = 'B97384'
+SKU_E5_MEM    = 'B97385'
 SKU_BLOCK_STG = 'B91961'
 SKU_BLOCK_VPU = 'B91962'
 SKU_OBJ_STG   = 'B96484'
@@ -220,8 +222,10 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
         top=Side(style='thin'),  bottom=Side(style='thin')
     )
 
-    ocpu_rate   = prices[SKU_E4_OCPU]
-    mem_rate    = prices[SKU_E4_MEM]
+    sku_ocpu    = SKU_E5_OCPU if 'E5' in shape else SKU_E4_OCPU
+    sku_mem     = SKU_E5_MEM  if 'E5' in shape else SKU_E4_MEM
+    ocpu_rate   = prices[sku_ocpu]
+    mem_rate    = prices[sku_mem]
     stg_rate    = prices[SKU_BLOCK_STG]
     vpu_rate    = prices[SKU_BLOCK_VPU]
     win_os_rate = prices.get('B88318', 0)
@@ -308,13 +312,14 @@ def to_oci_excel(bom_df, prices, currency, shape, rw_params=None, obj_params=Non
             wos_cost  = wos
             hrs_label = f"×{HOURS_PER_MONTH} hrs"
 
-        for col, val in enumerate([SKU_E4_OCPU, f"Compute - E4 - OCPU (OCPU Per Hour) {hrs_label}",
+        shape_gen = "E5" if 'E5' in shape else "E4"
+        for col, val in enumerate([sku_ocpu, f"Compute - {shape_gen} - OCPU (OCPU Per Hour) {hrs_label}",
                                     '', a['ocpus'], '', ocpu_rate, round(ocpu_cost, 2), "On-Demand"], 1):
             ws.cell(row=row, column=col, value=val).alignment = wrap
         row += 1
 
         # Memory
-        for col, val in enumerate([SKU_E4_MEM, f"Compute - E4 - Memory (GB Per Hour) {hrs_label}",
+        for col, val in enumerate([sku_mem, f"Compute - {shape_gen} - Memory (GB Per Hour) {hrs_label}",
                                     '', '', round(a['mem'], 1), mem_rate, round(mem_cost, 2), "On-Demand"], 1):
             ws.cell(row=row, column=col, value=val)
         row += 1
@@ -634,8 +639,10 @@ if uploaded_file:
         with st.spinner("Fetching OCI pricing..."):
             try:
                 prices = fetch_oci_prices(currency)
-                ocpu_hr  = prices[SKU_E4_OCPU]
-                mem_hr   = prices[SKU_E4_MEM]
+                sku_ocpu = SKU_E5_OCPU if shape == "VM.Standard.E5.Flex" else SKU_E4_OCPU
+                sku_mem  = SKU_E5_MEM  if shape == "VM.Standard.E5.Flex" else SKU_E4_MEM
+                ocpu_hr  = prices[sku_ocpu]
+                mem_hr   = prices[sku_mem]
                 stg_mo   = prices[SKU_BLOCK_STG]
                 vpu_mo   = prices[SKU_BLOCK_VPU]
                 pricing_ok = True
